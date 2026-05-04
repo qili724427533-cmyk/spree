@@ -91,6 +91,15 @@ Spree::Core::Engine.add_routes do
       end
 
       namespace :admin do
+        # Mounts a nested `custom_fields` resource on parents that include
+        # Spree::Metafields. See docs/plans/5.4-6.0-custom-fields-rename.md.
+        concern :custom_fieldable do
+          resources :custom_fields
+        end
+
+        # Definitions are per resource type, not per instance.
+        resources :custom_field_definitions
+
         # Authentication
         post 'auth/login', to: 'auth#create'
         post 'auth/refresh', to: 'auth#refresh'
@@ -110,7 +119,7 @@ Spree::Core::Engine.add_routes do
         resources :direct_uploads, only: [:create]
 
         # Products
-        resources :products do
+        resources :products, concerns: :custom_fieldable do
           member do
             post :clone
           end
@@ -121,10 +130,10 @@ Spree::Core::Engine.add_routes do
         end
 
         # Categories
-        resources :categories, only: [:index, :show]
+        resources :categories, only: [:index, :show], concerns: :custom_fieldable
 
         # Option Types (with nested option_values in payload)
-        resources :option_types
+        resources :option_types, concerns: :custom_fieldable
 
         # Tax Categories
         resources :tax_categories, only: [:index, :show]
@@ -136,20 +145,20 @@ Spree::Core::Engine.add_routes do
         resources :tags, only: [:index]
 
         # Customers
-        resources :customers do
+        resources :customers, concerns: :custom_fieldable do
           resources :addresses, controller: 'customers/addresses'
           resources :credit_cards, controller: 'customers/credit_cards', only: [:index, :show, :destroy]
           resources :store_credits, controller: 'customers/store_credits'
         end
 
         # Variants (top-level, for search/autocomplete across all products)
-        resources :variants, only: [:index, :show]
+        resources :variants, only: [:index, :show], concerns: :custom_fieldable
 
         # Countries (with ?expand=states for state/province dropdown)
         resources :countries, only: [:index, :show]
 
         # Orders
-        resources :orders do
+        resources :orders, concerns: :custom_fieldable do
           member do
             patch :complete
             patch :cancel

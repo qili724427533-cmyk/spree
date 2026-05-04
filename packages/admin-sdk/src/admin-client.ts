@@ -75,6 +75,11 @@ import type {
   CustomerStoreCreditCreateParams,
   CustomerStoreCreditUpdateParams,
   CustomerUpdateParams,
+  CustomFieldCreateParams,
+  CustomFieldDefinitionCreateParams,
+  CustomFieldDefinitionUpdateParams,
+  CustomFieldOwnerType,
+  CustomFieldUpdateParams,
   DirectUploadCreateParams,
   FulfillmentUpdateParams,
   GiftCardApplyParams,
@@ -103,6 +108,8 @@ import type {
   Country,
   CreditCard,
   Customer,
+  CustomField,
+  CustomFieldDefinition,
   Fulfillment,
   LineItem,
   Media,
@@ -118,12 +125,152 @@ import type {
   Variant,
 } from './types'
 
+/**
+ * Maps a built-in CustomField owner type (e.g. `Spree::Product`) to its admin
+ * route segment. The generic `client.customFields(ownerType, ownerId)` escape
+ * hatch reads this map; plugin owners that aren't registered here hit the
+ * runtime "Unknown owner type" error and should use the first-class accessor
+ * exposed by their plugin.
+ *
+ * `satisfies` here keeps the map keys as a subset of the strict-literal arm of
+ * `CustomFieldOwnerType`. Adding a built-in owner means updating both this map
+ * and the union in `params.ts`; the type system flags the map side.
+ */
+const CUSTOM_FIELD_OWNER_PATHS = {
+  'Spree::Product': '/products',
+  'Spree::Variant': '/variants',
+  'Spree::Order': '/orders',
+  'Spree::User': '/customers',
+  'Spree::Category': '/categories',
+  'Spree::OptionType': '/option_types',
+} as const satisfies Record<Exclude<CustomFieldOwnerType, string & {}>, string>
+
 export class AdminClient {
   /** @internal */
   readonly request: RequestFn
 
   constructor(request: RequestFn) {
     this.request = request
+  }
+
+  /**
+   * Builds a `customFields` accessor whose methods expect the parent ID as
+   * their first argument. Inlined by each first-class resource (`products`,
+   * `orders`, …) so callers can write `client.products.customFields.list(id)`.
+   * The generic `customFields(ownerType, ownerId)` escape hatch curries the
+   * parent ID up front and returns the same shape minus the leading `parentId`.
+   * @internal
+   */
+  private parentScopedCustomFields(basePath: string) {
+    return {
+      list: (
+        parentId: string,
+        params?: ListParams & Record<string, unknown>,
+        options?: RequestOptions,
+      ): Promise<PaginatedResponse<CustomField>> =>
+        this.request<PaginatedResponse<CustomField>>(
+          'GET',
+          `${basePath}/${parentId}/custom_fields`,
+          { ...options, params: params ? transformListParams(params) : undefined },
+        ),
+
+      get: (parentId: string, id: string, options?: RequestOptions): Promise<CustomField> =>
+        this.request<CustomField>('GET', `${basePath}/${parentId}/custom_fields/${id}`, options),
+
+      create: (
+        parentId: string,
+        params: CustomFieldCreateParams,
+        options?: RequestOptions,
+      ): Promise<CustomField> =>
+        this.request<CustomField>('POST', `${basePath}/${parentId}/custom_fields`, {
+          ...options,
+          body: params,
+        }),
+
+      update: (
+        parentId: string,
+        id: string,
+        params: CustomFieldUpdateParams,
+        options?: RequestOptions,
+      ): Promise<CustomField> =>
+        this.request<CustomField>('PATCH', `${basePath}/${parentId}/custom_fields/${id}`, {
+          ...options,
+          body: params,
+        }),
+
+      delete: (parentId: string, id: string, options?: RequestOptions): Promise<void> =>
+        this.request<void>('DELETE', `${basePath}/${parentId}/custom_fields/${id}`, options),
+    }
+  }
+
+  /**
+   * Generic accessor for any custom-field-bearing resource. Use the
+   * first-class accessors (`client.products.customFields`, etc.) when
+   * available — they're more discoverable. Use this when the owner is a
+   * plugin-registered resource without a dedicated accessor.
+   *
+   * ```ts
+   * await client.customFields('Spree::Product', 'prod_xxx').list()
+   * ```
+   */
+  customFields(ownerType: CustomFieldOwnerType, ownerId: string) {
+    const ownerPath = (CUSTOM_FIELD_OWNER_PATHS as Record<string, string>)[ownerType]
+    if (!ownerPath) {
+      throw new Error(
+        `Unknown custom-field owner type: ${ownerType}. Add it to CUSTOM_FIELD_OWNER_PATHS.`,
+      )
+    }
+    const scoped = this.parentScopedCustomFields(ownerPath)
+    return {
+      list: (params?: ListParams & Record<string, unknown>, options?: RequestOptions) =>
+        scoped.list(ownerId, params, options),
+      get: (id: string, options?: RequestOptions) => scoped.get(ownerId, id, options),
+      create: (params: CustomFieldCreateParams, options?: RequestOptions) =>
+        scoped.create(ownerId, params, options),
+      update: (id: string, params: CustomFieldUpdateParams, options?: RequestOptions) =>
+        scoped.update(ownerId, id, params, options),
+      delete: (id: string, options?: RequestOptions) => scoped.delete(ownerId, id, options),
+    }
+  }
+
+  // ============================================
+  // Custom Field Definitions (per resource type)
+  // ============================================
+
+  readonly customFieldDefinitions = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<CustomFieldDefinition>> =>
+      this.request<PaginatedResponse<CustomFieldDefinition>>('GET', '/custom_field_definitions', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (id: string, options?: RequestOptions): Promise<CustomFieldDefinition> =>
+      this.request<CustomFieldDefinition>('GET', `/custom_field_definitions/${id}`, options),
+
+    create: (
+      params: CustomFieldDefinitionCreateParams,
+      options?: RequestOptions,
+    ): Promise<CustomFieldDefinition> =>
+      this.request<CustomFieldDefinition>('POST', '/custom_field_definitions', {
+        ...options,
+        body: params,
+      }),
+
+    update: (
+      id: string,
+      params: CustomFieldDefinitionUpdateParams,
+      options?: RequestOptions,
+    ): Promise<CustomFieldDefinition> =>
+      this.request<CustomFieldDefinition>('PATCH', `/custom_field_definitions/${id}`, {
+        ...options,
+        body: params,
+      }),
+
+    delete: (id: string, options?: RequestOptions): Promise<void> =>
+      this.request<void>('DELETE', `/custom_field_definitions/${id}`, options),
   }
 
   // ============================================
@@ -332,6 +479,8 @@ export class AdminClient {
           ),
       },
     },
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::Product']),
   }
 
   // ============================================
@@ -589,6 +738,8 @@ export class AdminClient {
       get: (orderId: string, id: string, options?: RequestOptions): Promise<Adjustment> =>
         this.request<Adjustment>('GET', `/orders/${orderId}/adjustments/${id}`, options),
     },
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::Order']),
   }
 
   // ============================================
@@ -627,6 +778,8 @@ export class AdminClient {
 
     delete: (id: string, options?: RequestOptions): Promise<void> =>
       this.request<void>('DELETE', `/option_types/${id}`, options),
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::OptionType']),
   }
 
   // ============================================
@@ -833,6 +986,8 @@ export class AdminClient {
       delete: (customerId: string, id: string, options?: RequestOptions): Promise<void> =>
         this.request<void>('DELETE', `/customers/${customerId}/store_credits/${id}`, options),
     },
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::User']),
   }
 
   // ============================================
@@ -848,6 +1003,8 @@ export class AdminClient {
         ...options,
         params: params ? transformListParams(params) : undefined,
       }),
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::Category']),
   }
 
   // ============================================
@@ -869,6 +1026,8 @@ export class AdminClient {
         ...options,
         params: getParams(params),
       }),
+
+    customFields: this.parentScopedCustomFields(CUSTOM_FIELD_OWNER_PATHS['Spree::Variant']),
   }
 
   // ============================================

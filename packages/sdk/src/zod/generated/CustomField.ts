@@ -6,6 +6,7 @@ export const CustomFieldSchema = z.object({
   label: z.string(),
   type: z.string(),
   key: z.string(),
+  field_type: z.any(),
   value: z.any(),
 });
 

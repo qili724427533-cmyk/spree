@@ -51,11 +51,13 @@ module Spree
           return unless current_api_key
           return if self.class._scope_check_skipped
 
+          resource = scoped_resource_name
           # Fail closed: a controller authenticated by API key MUST declare
-          # either `scoped_resource :name` or `skip_scope_check!`.
-          raise MissingScopedResource, self.class unless self.class._scoped_resource
+          # either `scoped_resource :name`, override `scoped_resource_name`,
+          # or `skip_scope_check!`.
+          raise MissingScopedResource, self.class unless resource
 
-          required = "#{action_kind}_#{self.class._scoped_resource}"
+          required = "#{action_kind}_#{resource}"
           return if current_api_key.has_scope?(required)
 
           render_error(
@@ -64,6 +66,15 @@ module Spree
             status: :forbidden,
             details: { required_scope: required }
           )
+        end
+
+        # The resource name used in scope strings (`read_<name>` / `write_<name>`).
+        # Defaults to the class-level `scoped_resource :name` declaration.
+        # Override in controllers that resolve scope at request time (e.g. the
+        # nested-on-many-parents `CustomFieldsController` returns the parent's
+        # route segment).
+        def scoped_resource_name
+          self.class._scoped_resource
         end
 
         # Override in controllers with non-REST custom actions (e.g. dashboard

@@ -329,3 +329,44 @@ export interface VariantUpdateParams {
   prices?: VariantPrice[]
   stock_items?: VariantStockItem[]
 }
+
+export interface CustomFieldCreateParams {
+  custom_field_definition_id: string
+  value: unknown
+}
+
+export interface CustomFieldUpdateParams {
+  value: unknown
+}
+
+export interface CustomFieldDefinitionCreateParams {
+  namespace?: string
+  key: string
+  label?: string
+  field_type: string
+  resource_type: string
+  storefront_visible?: boolean
+}
+
+export interface CustomFieldDefinitionUpdateParams {
+  namespace?: string
+  key?: string
+  label?: string
+  field_type?: string
+  storefront_visible?: boolean
+}
+
+/**
+ * Owner type passed to the generic `client.customFields(ownerType, ownerId)`
+ * escape hatch. The first-class six (products, variants, orders, customers,
+ * categories, option_types) have dedicated `client.<resource>.customFields`
+ * accessors and don't need this.
+ */
+export type CustomFieldOwnerType =
+  | 'Spree::Product'
+  | 'Spree::Variant'
+  | 'Spree::Order'
+  | 'Spree::User'
+  | 'Spree::Category'
+  | 'Spree::OptionType'
+  | (string & {})

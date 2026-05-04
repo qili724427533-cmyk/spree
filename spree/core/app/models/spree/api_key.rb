@@ -19,6 +19,7 @@ module Spree
       read_gift_cards write_gift_cards
       read_store_credits write_store_credits
       read_categories write_categories
+      read_custom_field_definitions write_custom_field_definitions
       read_settings write_settings
       read_webhooks write_webhooks
       read_dashboard

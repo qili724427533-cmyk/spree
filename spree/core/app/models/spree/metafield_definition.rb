@@ -18,6 +18,7 @@ module Spree
     validates :metafield_type, presence: true, inclusion: { in: :valid_available_types }
     validates :resource_type, presence: true, inclusion: { in: :valid_available_resources }
     validates :key, uniqueness: { scope: spree_base_uniqueness_scope + [:resource_type, :namespace] }
+    validate :field_type_input_must_be_recognized
 
     #
     # Scopes
@@ -51,14 +52,37 @@ module Spree
     self.whitelisted_ransackable_attributes = %w[key namespace name resource_type display_on]
     self.whitelisted_ransackable_scopes = %w[search multi_search]
 
-    # 5.5 API naming bridge (DB column rename in 6.0)
-    # Aligns with OptionType/OptionValue which also expose `label` for the display name.
-    def label
-      name
+    # API naming bridge — internal columns rename in 6.0.
+    # `label` matches OptionType/OptionValue conventions.
+    # `storefront_visible` maps the boolean API field to the
+    # `display_on: 'both'/'back_end'` string enum.
+    alias_attribute :label, :name
+
+    # API-facing token for the STI subclass name stored in `metafield_type`.
+    # Reader returns the registered token (`short_text`); writer accepts either
+    # the token or the legacy class-name form for back-compat.
+    def field_type
+      Spree::Metafield::TYPE_CLASS_TO_TOKEN[metafield_type] || metafield_type
     end
 
-    def label=(value)
-      self.name = value
+    def field_type=(value)
+      v = value.to_s
+      mapped = Spree::Metafield::TYPE_TOKENS[v]
+      # An input is "recognized" when it's either a known token (mapped to a
+      # class) or already a known class name. Anything else gets surfaced as
+      # an error on `field_type` so API clients get a token-vocabulary
+      # message instead of the raw class-name inclusion error on
+      # `metafield_type`.
+      @field_type_input_recognized = !mapped.nil? || Spree::Metafield::TYPE_CLASS_TO_TOKEN.key?(v)
+      self.metafield_type = mapped || value
+    end
+
+    def storefront_visible
+      available_on_front_end?
+    end
+
+    def storefront_visible=(value)
+      self.display_on = ActiveModel::Type::Boolean.new.cast(value) ? 'both' : 'back_end'
     end
 
     # Returns the full key with namespace
@@ -89,6 +113,13 @@ module Spree
 
     def valid_available_types
       self.class.available_types.map(&:to_s)
+    end
+
+    def field_type_input_must_be_recognized
+      return if @field_type_input_recognized.nil? || @field_type_input_recognized
+
+      tokens = Spree::Metafield::TYPE_TOKENS.keys.join(', ')
+      errors.add(:field_type, "is not a known custom field type (expected one of: #{tokens})")
     end
 
     def valid_available_resources
