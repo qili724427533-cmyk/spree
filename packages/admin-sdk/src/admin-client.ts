@@ -102,6 +102,7 @@ import type {
   CustomFieldOwnerType,
   CustomFieldUpdateParams,
   DirectUploadCreateParams,
+  ExportCreateParams,
   FulfillmentUpdateParams,
   GiftCardApplyParams,
   InvitationAcceptParams,
@@ -135,6 +136,7 @@ import type {
   Customer,
   CustomField,
   CustomFieldDefinition,
+  Export,
   Fulfillment,
   Invitation,
   LineItem,
@@ -895,6 +897,37 @@ export class AdminClient {
         ...options,
         params,
       }),
+  }
+
+  // ============================================
+  // Exports (CSV: products, orders, customers, …)
+  // ============================================
+
+  /**
+   * Queues asynchronous CSV exports and reports their progress. After
+   * `create()`, poll `get(id)` until `done === true`, then fetch
+   * `download_url` (with `Authorization: Bearer …`) and drive the browser
+   * download via a Blob — top-level navigation cannot carry an in-memory
+   * JWT, so `window.location.href = download_url` does not work.
+   */
+  readonly exports = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<Export>> =>
+      this.request<PaginatedResponse<Export>>('GET', '/exports', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (id: string, options?: RequestOptions): Promise<Export> =>
+      this.request<Export>('GET', `/exports/${id}`, options),
+
+    create: (params: ExportCreateParams, options?: RequestOptions): Promise<Export> =>
+      this.request<Export>('POST', '/exports', { ...options, body: params }),
+
+    delete: (id: string, options?: RequestOptions): Promise<void> =>
+      this.request<void>('DELETE', `/exports/${id}`, options),
   }
 
   // ============================================
