@@ -85,6 +85,80 @@ jobs:
         working-directory: packages/sdk
         run: pnpm test:integration
 
+  admin-e2e:
+    name: "Admin SPA - E2E"
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+      DB: sqlite3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+          working-directory: spree/api
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The admin SPA imports built dist from the SDKs (per the workspace
+      # convention) — build them first so Vite resolves the workspace deps.
+      - name: Build SDK dependencies
+        run: pnpm turbo build --filter=@spree/sdk-core --filter=@spree/admin-sdk
+
+      - name: Setup dummy Rails app
+        working-directory: spree/api
+        run: bundle exec rake test_app
+
+      # Cache the chromium download (~85MB). The cache key tracks the
+      # Playwright version pinned in lockfile, so a bump auto-invalidates.
+      - name: Read Playwright version
+        id: playwright
+        run: |
+          VERSION=$(node -p "require('./packages/admin/node_modules/@playwright/test/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: packages/admin
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Even on a cache hit Playwright still wants the OS-level deps installed
+      # (libnss, libxkbcommon, …). `install-deps` is the cheap part.
+      - name: Install Playwright OS deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: packages/admin
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run admin E2E tests
+        working-directory: packages/admin
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            packages/admin/playwright-report/
+            packages/admin/test-results/
+          retention-days: 14
+
   release-sdk:
     name: "SDK - Release"
     needs: check

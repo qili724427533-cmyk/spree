@@ -1,4 +1,4 @@
-import type { InvitationAcceptParams } from '@spree/admin-sdk'
+import type { AuthTokens, InvitationAcceptParams } from '@spree/admin-sdk'
 import { createContext, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { adminClient } from '@/client'
 
@@ -13,17 +13,10 @@ interface AuthContextValue {
   user: AuthUser | null
   token: string | null
   isAuthenticated: boolean
-  /** True until the cold-load /auth/refresh bootstrap settles. */
   isInitializing: boolean
-  /** True while a login submission is in flight. */
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  /**
-   * Drives the public invitation-acceptance flow. On success the issued JWT +
-   * refresh-token cookie behave identically to a fresh login — the provider's
-   * normal refresh loop takes over from there.
-   */
   acceptInvitation: (id: string, token: string, params: InvitationAcceptParams) => Promise<void>
 }
 
@@ -89,11 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, REFRESH_INTERVAL_MS)
   }, [refreshAccessToken, clearRefreshTimer])
 
-  const login = useCallback(
-    async (email: string, password: string) => {
+  const establish = useCallback(
+    async (req: Promise<AuthTokens>) => {
       setIsLoading(true)
       try {
-        const res = await adminClient.auth.login({ email, password })
+        const res = await req
         applySession(res.token, res.user)
         scheduleRefresh()
       } finally {
@@ -103,18 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession, scheduleRefresh],
   )
 
+  const login = useCallback(
+    (email: string, password: string) => establish(adminClient.auth.login({ email, password })),
+    [establish],
+  )
+
   const acceptInvitation = useCallback(
-    async (id: string, token: string, params: InvitationAcceptParams) => {
-      setIsLoading(true)
-      try {
-        const res = await adminClient.auth.acceptInvitation(id, token, params)
-        applySession(res.token, res.user)
-        scheduleRefresh()
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [applySession, scheduleRefresh],
+    (id: string, token: string, params: InvitationAcceptParams) =>
+      establish(adminClient.auth.acceptInvitation(id, token, params)),
+    [establish],
   )
 
   const logout = useCallback(async () => {

@@ -59,6 +59,9 @@ VITE_SPREE_API_URL=https://api.mystore.com pnpm build
 | `pnpm lint` | Lint with Biome |
 | `pnpm lint:fix` | Lint and auto-fix with Biome |
 | `pnpm format` | Format source with Biome |
+| `pnpm test:e2e` | Run the Playwright E2E suite against a real Rails backend |
+| `pnpm test:e2e:ui` | Run the E2E suite in Playwright's interactive UI for debugging |
+| `pnpm test:e2e:install` | One-time: install the Chromium build Playwright drives |
 
 ## Project structure
 
@@ -160,6 +163,61 @@ export function useOrders(params: ListOrdersParams) {
 ```
 
 Mutations follow the same pattern with `useMutation` and `queryClient.invalidateQueries(...)` to refresh affected views.
+
+## End-to-end tests
+
+The `e2e/` folder holds [Playwright](https://playwright.dev/) specs that drive the SPA against a real Rails backend — no API mocks. CI runs the same suite via the `admin-e2e` job in `.github/workflows/packages.yml`; locally, `pnpm test:e2e` mirrors what CI does.
+
+What the suite boots:
+
+- **Rails** on `:3010` — the dummy app at `spree/api/spec/dummy`, with a fresh SQLite DB seeded via `Spree::Seeds::All` on every run.
+- **Vite dev server** on `:5174` — proxies `/api/*` to the test Rails so the SPA stays same-origin (matches dev's cookie posture exactly).
+- **Playwright** drives Chromium and tears both down at the end.
+
+Currently covered:
+
+- `e2e/auth.spec.ts` — login form happy path + invalid-credentials error
+- `e2e/invitation-acceptance.spec.ts` — full staff-onboarding lifecycle: admin signs in → opens Settings → Staff → invites a teammate → logs out → invitee opens the link in a fresh browser context → completes signup → lands authenticated
+
+### Running locally
+
+One-time prerequisites: a built dummy Rails app and the Chromium browser bundle.
+
+```bash
+# From the repo root, build the dummy Rails app once.
+cd spree/api
+bundle install
+bundle exec rake test_app
+
+# From this package, install Playwright's Chromium once per machine.
+cd ../../packages/admin
+pnpm test:e2e:install
+```
+
+Then run the suite:
+
+```bash
+pnpm test:e2e                       # full suite
+pnpm test:e2e e2e/auth.spec.ts      # one file
+pnpm test:e2e -g "invites a teammate"  # filter by test name
+pnpm test:e2e:ui                    # interactive debugger (time-travel, DOM inspector)
+```
+
+`pnpm test:e2e` is safe to re-run: each run resets the SQLite DB before seeding, so tests start from a known state.
+
+### Debugging failures
+
+On failure, Playwright drops three artifacts in `test-results/<spec>/`:
+
+- `test-failed-1.png` — screenshot at the moment of failure
+- `video.webm` — the full run
+- `error-context.md` — DOM snapshot + the failing locator (usually enough to fix selector issues without re-running)
+
+CI uploads these as a `playwright-report` artifact (14-day retention) on failed runs.
+
+### Adding a spec
+
+Specs live next to the existing ones in `e2e/`. Use `getCredentials()` from `e2e/fixtures.ts` for the seeded admin email/password and store ID — anything else, drive through the UI like a user would. Avoid hitting the Admin API directly from a spec unless the flow you're testing requires backend setup that has no UI path; the value of these tests is exercising the full layer cake.
 
 ## Contributing
 

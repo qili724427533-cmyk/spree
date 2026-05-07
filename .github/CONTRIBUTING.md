@@ -23,6 +23,7 @@ Please read our [Code of Conduct](../CODE_OF_CONDUCT.md) before contributing.
   - [Packages](#packages)
   - [Common commands](#common-commands)
   - [Package-specific commands](#package-specific-commands)
+  - [Admin SPA E2E tests](#admin-spa-e2e-tests)
   - [Type generation](#type-generation)
   - [Releasing packages](#releasing-packages)
 - [Code Style](#code-style)
@@ -181,13 +182,15 @@ After schema changes, re-run `bundle exec rake parallel_setup` to update the wor
 
 ### Integration tests (Admin Panel)
 
-The Admin Panel uses feature specs that run in a real browser via chromedriver. You only need this if you're working on admin UI changes.
+The legacy Rails admin (`spree/admin`) ships feature specs that run in a real browser via chromedriver. You only need this if you're touching the legacy admin UI.
 
 Install chromedriver on macOS:
 
 ```bash
 brew install chromedriver
 ```
+
+The 6.0 React admin SPA (`packages/admin`) has its own end-to-end test suite running on Playwright against a real Rails backend — see [Admin SPA E2E tests](#admin-spa-e2e-tests) under TypeScript Development.
 
 ### Performance in development mode
 
@@ -255,6 +258,42 @@ pnpm --filter @spree/sdk generate:zod
 ```
 
 Tests use [Vitest](https://vitest.dev/) with [MSW](https://mswjs.io/) for API mocking at the network level.
+
+### Admin SPA E2E tests
+
+The 6.0 React admin (`packages/admin`) has an end-to-end suite running on [Playwright](https://playwright.dev/) against a real Rails backend — no mocks. The spec files exercise the full UI: login form, staff invitation flow, invitee signup. CI runs the same suite via the `admin-e2e` job in `.github/workflows/packages.yml`.
+
+To run locally you need Ruby (the suite boots a Rails server) and a one-time browser install:
+
+```bash
+# Make sure the dummy Rails app exists (one-time, after a fresh checkout).
+cd spree/api
+bundle install
+bundle exec rake test_app
+
+# Install Playwright's Chromium (one-time per machine).
+cd ../../packages/admin
+pnpm test:e2e:install
+
+# Run the suite. Boots Rails on :3010 + Vite on :5174, runs all specs, tears
+# both down. Safe to re-run repeatedly — the SQLite DB resets each run.
+pnpm test:e2e
+```
+
+For interactive debugging (time-travel through actions, inspect the DOM at each step):
+
+```bash
+pnpm test:e2e:ui
+```
+
+Filter to a single spec or test name:
+
+```bash
+pnpm test:e2e e2e/auth.spec.ts
+pnpm test:e2e -g "invites a teammate"
+```
+
+When a test fails, Playwright drops a screenshot, video, and DOM snapshot in `packages/admin/test-results/<spec>/` — usually enough to diagnose without re-running.
 
 ### Type generation
 

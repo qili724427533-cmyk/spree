@@ -148,8 +148,8 @@ function SignInForm({
             </p>
           )}
           <div className="grid gap-2">
-            <Label>Email</Label>
-            <Input value={invitation.email} disabled />
+            <Label htmlFor="invitee-email">Email</Label>
+            <Input id="invitee-email" value={invitation.email} disabled />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
@@ -227,8 +227,8 @@ function SignUpForm({
             </p>
           )}
           <div className="grid gap-2">
-            <Label>Email</Label>
-            <Input value={invitation.email} disabled />
+            <Label htmlFor="invitee-email">Email</Label>
+            <Input id="invitee-email" value={invitation.email} disabled />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
