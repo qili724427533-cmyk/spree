@@ -424,7 +424,7 @@ function OrdersCard({
       <CardHeader>
         <CardTitle>
           Orders
-          {totalCount > 0 && <Badge>{totalCount}</Badge>}
+          {totalCount > 0 && <Badge variant="outline">{totalCount}</Badge>}
         </CardTitle>
         {totalCount > orders.length && (
           <CardAction>
@@ -595,7 +595,7 @@ function AddressesCard({ customer }: { customer: Customer }) {
         <CardHeader>
           <CardTitle>
             Addresses
-            {addresses.length > 0 && <Badge>{addresses.length}</Badge>}
+            {addresses.length > 0 && <Badge variant="outline">{addresses.length}</Badge>}
           </CardTitle>
           <CardAction>
             <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
@@ -621,8 +621,10 @@ function AddressesCard({ customer }: { customer: Customer }) {
                       addr.label ||
                       '—'}
                     <span className="ml-2 inline-flex gap-1">
-                      {addr.is_default_billing && <Badge variant="info">Default billing</Badge>}
-                      {addr.is_default_shipping && <Badge variant="info">Default shipping</Badge>}
+                      {addr.is_default_billing && <Badge variant="outline">Default billing</Badge>}
+                      {addr.is_default_shipping && (
+                        <Badge variant="outline">Default shipping</Badge>
+                      )}
                     </span>
                   </div>
                   <div className="text-muted-foreground">{addr.address1}</div>

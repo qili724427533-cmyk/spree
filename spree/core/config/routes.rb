@@ -40,6 +40,15 @@ Rails.application.routes.draw do
       )
     end
   end
+  # Used by admin mailers; the SPA derives the URL from `window.location.origin` instead.
+  direct :admin_invitation_acceptance do |invitation, _options = {}|
+    path = "/accept-invitation/#{invitation.prefixed_id}?token=#{invitation.token}"
+    base = Spree::Config[:admin_url].presence ||
+           (Rails.env.development? ? 'http://localhost:5173' : nil) ||
+           invitation.store&.formatted_url
+
+    base.present? ? "#{base.chomp('/')}#{path}" : path
+  end
 end
 
 Spree::Core::Engine.draw_routes

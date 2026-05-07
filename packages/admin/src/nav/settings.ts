@@ -23,7 +23,6 @@ settingsNav.add({
   group: 'team',
   position: 100,
   subject: Subject.AdminUser,
-  comingSoon: true,
 })
 
 settingsNav.add({
@@ -34,5 +33,4 @@ settingsNav.add({
   group: 'team',
   position: 200,
   subject: Subject.ApiKey,
-  comingSoon: true,
 })

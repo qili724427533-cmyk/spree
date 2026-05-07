@@ -141,9 +141,15 @@ export function PageHeader({
     >
       {backTo && <BackButton fallback={backTo} />}
 
-      <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-2xl font-medium leading-tight">{title}</h1>
-        {badges}
+      {/* Title + badges share the first row; subtitle drops to its own line
+          underneath so descriptive prose doesn't get crammed alongside the
+          heading. Short metadata subtitles (customer location, order status
+          hint) read fine on the second line too. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-medium leading-tight">{title}</h1>
+          {badges}
+        </div>
         {subtitle && <span className="text-sm text-muted-foreground">{subtitle}</span>}
       </div>
 

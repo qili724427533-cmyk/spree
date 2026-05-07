@@ -114,6 +114,7 @@ function TopBarUser() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label="User menu"
           className="flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent"
         >
           <Avatar className="size-7">

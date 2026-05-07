@@ -346,6 +346,44 @@ export interface CustomFieldDefinitionUpdateParams {
   storefront_visible?: boolean
 }
 
+export interface ApiKeyCreateParams {
+  name: string
+  key_type: 'publishable' | 'secret'
+  /** Required for `key_type: 'secret'`. See `Spree::ApiKey::SCOPES` for the full list. */
+  scopes?: string[]
+}
+
+export interface ApiKeyUpdateParams {
+  /** `key_type` is set on create only — flipping types invalidates downstream consumers. */
+  name?: string
+  scopes?: string[]
+}
+
+export interface InvitationCreateParams {
+  email: string
+  /** Prefixed role ID (e.g. `role_xxx`). */
+  role_id: string
+}
+
+/**
+ * Body for accepting an invitation. Empty for existing accounts when no
+ * password change is needed; populated with `password` (and optionally
+ * `password_confirmation` + names) for new accounts being created on accept.
+ */
+export interface InvitationAcceptParams {
+  password?: string
+  password_confirmation?: string
+  first_name?: string
+  last_name?: string
+}
+
+export interface AdminUserUpdateParams {
+  first_name?: string
+  last_name?: string
+  /** Prefixed role IDs scoped to the current store. Treated as a complete replacement. */
+  role_ids?: string[]
+}
+
 /**
  * Owner type passed to the generic `client.customFields(ownerType, ownerId)`
  * escape hatch. The first-class six (products, variants, orders, customers,

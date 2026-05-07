@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/e2e/.credentials.json
+/e2e/.rails.pid

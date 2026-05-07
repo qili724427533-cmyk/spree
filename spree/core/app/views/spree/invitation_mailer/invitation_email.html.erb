@@ -12,6 +12,10 @@
   <p>
     <%= link_to Spree.t(:accept), spree.admin_invitation_url(@invitation, token: @invitation.token, host: @invitation.store.formatted_url) %>
   </p>
+<% else %>
+  <p>
+    <%= link_to Spree.t(:accept), main_app.admin_invitation_acceptance_url(@invitation) %>
+  </p>
 <% end %>
 
 <p>

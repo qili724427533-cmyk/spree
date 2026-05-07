@@ -197,6 +197,9 @@ module Spree
         admin_payment_source_serializer: 'Spree::Api::V3::Admin::PaymentSourceSerializer',
         admin_digital_link_serializer: 'Spree::Api::V3::Admin::DigitalLinkSerializer',
         admin_store_serializer: 'Spree::Api::V3::Admin::StoreSerializer',
+        admin_api_key_serializer: 'Spree::Api::V3::Admin::ApiKeySerializer',
+        admin_invitation_serializer: 'Spree::Api::V3::Admin::InvitationSerializer',
+        admin_role_serializer: 'Spree::Api::V3::Admin::RoleSerializer',
 
         # platform serializers
         platform_metafield_serializer: 'Spree::Api::V2::Platform::MetafieldSerializer',

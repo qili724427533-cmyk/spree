@@ -105,6 +105,12 @@ Spree::Core::Engine.add_routes do
         post 'auth/refresh', to: 'auth#refresh'
         post 'auth/logout', to: 'auth#logout'
 
+        # Public invitation acceptance — unauthenticated; the prefixed ID +
+        # token in the URL act as the credential. Mounted under `auth/` so
+        # the issued refresh-token cookie's path matches `/auth/refresh`.
+        get 'auth/invitations/:id/lookup', to: 'invitation_acceptances#lookup'
+        post 'auth/invitations/:id/accept', to: 'invitation_acceptances#accept'
+
         # Dashboard
         namespace :dashboard do
           get :analytics
@@ -115,6 +121,20 @@ Spree::Core::Engine.add_routes do
 
         # Store Settings
         resource :store, only: [:show, :update], controller: 'store'
+
+        # Staff & access (invitations, admin users, roles, API keys)
+        resources :admin_users, only: [:index, :show, :update, :destroy]
+        resources :invitations, only: [:index, :show, :create, :destroy] do
+          member do
+            patch :resend
+          end
+        end
+        resources :api_keys, only: [:index, :show, :create, :destroy] do
+          member do
+            patch :revoke
+          end
+        end
+        resources :roles, only: [:index, :show]
 
         # Direct Uploads (Active Storage)
         resources :direct_uploads, only: [:create]

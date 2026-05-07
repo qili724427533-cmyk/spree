@@ -25,6 +25,10 @@ module Spree
       # Alphabetized to more easily lookup particular preferences
       preference :address_requires_state, :boolean, default: true, deprecated: true # should state/state_name be required
       preference :address_requires_phone, :boolean, default: false # Determines whether we require phone in address
+      # Origin where the admin SPA is hosted (e.g. `https://admin.shop.com`).
+      # Used by admin mailers; falls back to `http://localhost:5173` in dev
+      # and the store's storefront URL otherwise. Set this in production.
+      preference :admin_url, :string, default: nil
       preference :allow_checkout_on_gateway_error, :boolean, default: false
       preference :allow_empty_price_amount, :boolean, default: false
       preference :allow_guest_checkout, :boolean, default: true, deprecated: true # this is only used in the rails frontend, and is not implemented in API

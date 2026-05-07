@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AcceptInvitationInvitationIdRouteImport } from './routes/accept-invitation.$invitationId'
 import { Route as AuthenticatedStoreIdRouteImport } from './routes/_authenticated/$storeId'
 import { Route as AuthenticatedStoreIdIndexRouteImport } from './routes/_authenticated/$storeId/index'
 import { Route as AuthenticatedStoreIdSettingsRouteImport } from './routes/_authenticated/$storeId/settings'
@@ -42,6 +43,12 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AcceptInvitationInvitationIdRoute =
+  AcceptInvitationInvitationIdRouteImport.update({
+    id: '/accept-invitation/$invitationId',
+    path: '/accept-invitation/$invitationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedStoreIdRoute = AuthenticatedStoreIdRouteImport.update({
   id: '/$storeId',
   path: '/$storeId',
@@ -136,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/$storeId': typeof AuthenticatedStoreIdRouteWithChildren
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
   '/$storeId/settings': typeof AuthenticatedStoreIdSettingsRouteWithChildren
   '/$storeId/': typeof AuthenticatedStoreIdIndexRoute
   '/$storeId/customers/$customerId': typeof AuthenticatedStoreIdCustomersCustomerIdRoute
@@ -153,6 +161,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
   '/': typeof AuthenticatedIndexRoute
   '/$storeId': typeof AuthenticatedStoreIdIndexRoute
   '/$storeId/customers/$customerId': typeof AuthenticatedStoreIdCustomersCustomerIdRoute
@@ -173,6 +182,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/$storeId': typeof AuthenticatedStoreIdRouteWithChildren
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/$storeId/settings': typeof AuthenticatedStoreIdSettingsRouteWithChildren
   '/_authenticated/$storeId/': typeof AuthenticatedStoreIdIndexRoute
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$storeId'
+    | '/accept-invitation/$invitationId'
     | '/$storeId/settings'
     | '/$storeId/'
     | '/$storeId/customers/$customerId'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/accept-invitation/$invitationId'
     | '/'
     | '/$storeId'
     | '/$storeId/customers/$customerId'
@@ -231,6 +243,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/$storeId'
+    | '/accept-invitation/$invitationId'
     | '/_authenticated/'
     | '/_authenticated/$storeId/settings'
     | '/_authenticated/$storeId/'
@@ -251,6 +264,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  AcceptInvitationInvitationIdRoute: typeof AcceptInvitationInvitationIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -275,6 +289,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/accept-invitation/$invitationId': {
+      id: '/accept-invitation/$invitationId'
+      path: '/accept-invitation/$invitationId'
+      fullPath: '/accept-invitation/$invitationId'
+      preLoaderRoute: typeof AcceptInvitationInvitationIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/$storeId': {
       id: '/_authenticated/$storeId'
@@ -460,6 +481,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  AcceptInvitationInvitationIdRoute: AcceptInvitationInvitationIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

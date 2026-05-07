@@ -397,9 +397,9 @@ function AddLineItemDialog({
               </Field>
 
               {selectedVariant && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
                   <div>
-                    <div className="font-medium text-sm">
+                    <div className="text-sm font-medium">
                       {selectedVariant.product_name ?? selectedVariant.sku}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -412,7 +412,8 @@ function AddLineItemDialog({
                   <button
                     type="button"
                     onClick={() => setSelectedVariant(null)}
-                    className="p-1 rounded hover:bg-blue-100 text-blue-600"
+                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label="Clear selected variant"
                   >
                     <XCircleIcon className="size-4" />
                   </button>
@@ -526,7 +527,7 @@ function LineItemsCard({ order }: { order: Order }) {
           <CardTitle>
             <ShoppingCartIcon className="size-4" />
             Line Items
-            {items.length > 0 && <Badge>{items.length}</Badge>}
+            {items.length > 0 && <Badge variant="outline">{items.length}</Badge>}
           </CardTitle>
           <CardAction className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
@@ -736,7 +737,7 @@ function ShipmentsCard({ order }: { order: Order }) {
           <CardTitle>
             <TruckIcon className="size-4" />
             Fulfillments
-            <Badge>{fulfillments.length}</Badge>
+            <Badge variant="outline">{fulfillments.length}</Badge>
           </CardTitle>
           <CardAction className="flex items-center gap-2">
             {order.fulfillment_status && <StatusBadge status={order.fulfillment_status} />}
@@ -889,7 +890,7 @@ function PaymentsCard({ order }: { order: Order }) {
         <CardTitle>
           <CreditCardIcon className="size-4" />
           Payments
-          {payments.length > 0 && <Badge>{payments.length}</Badge>}
+          {payments.length > 0 && <Badge variant="outline">{payments.length}</Badge>}
         </CardTitle>
         <CardAction className="flex items-center gap-2">
           {order.payment_status && <StatusBadge status={order.payment_status} />}

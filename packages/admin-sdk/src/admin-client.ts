@@ -48,6 +48,24 @@ export interface LoginCredentials {
   password: string
 }
 
+/**
+ * Public lookup of a pending invitation. The SPA hits this to render the
+ * acceptance page (store name, role, inviter). `invitee_exists` decides
+ * between the sign-in form (true) and the signup form (false).
+ */
+export interface InvitationLookup {
+  id: string
+  email: string
+  role_name: string | null
+  inviter_email: string | null
+  expires_at: string | null
+  invitee_exists: boolean
+  store: {
+    id: string | null
+    name: string | null
+  }
+}
+
 export interface PermissionRule {
   /** true for `can`, false for `cannot` */
   allow: boolean
@@ -70,6 +88,9 @@ export interface MeResponse {
 }
 
 import type {
+  AdminUserUpdateParams,
+  ApiKeyCreateParams,
+  ApiKeyUpdateParams,
   CustomerAddressParams,
   CustomerCreateParams,
   CustomerStoreCreditCreateParams,
@@ -83,6 +104,8 @@ import type {
   DirectUploadCreateParams,
   FulfillmentUpdateParams,
   GiftCardApplyParams,
+  InvitationAcceptParams,
+  InvitationCreateParams,
   LineItemCreateParams,
   LineItemUpdateParams,
   MediaCreateParams,
@@ -104,6 +127,8 @@ import type {
 import type {
   Address,
   Adjustment,
+  AdminUser,
+  ApiKey,
   Category,
   Country,
   CreditCard,
@@ -111,6 +136,7 @@ import type {
   CustomField,
   CustomFieldDefinition,
   Fulfillment,
+  Invitation,
   LineItem,
   Media,
   OptionType,
@@ -119,6 +145,7 @@ import type {
   PaymentMethod,
   Product,
   Refund,
+  Role,
   Store,
   StoreCredit,
   TaxCategory,
@@ -298,6 +325,39 @@ export class AdminClient {
      */
     logout: (options?: RequestOptions): Promise<void> =>
       this.request<void>('POST', '/auth/logout', options),
+
+    /**
+     * Public (unauthenticated) lookup of a pending invitation by prefixed ID + token.
+     * Returns just the safe-to-render context (store, role, inviter, invitee_exists)
+     * so the SPA acceptance page can decide between sign-in and signup forms.
+     */
+    lookupInvitation: (
+      id: string,
+      token: string,
+      options?: RequestOptions,
+    ): Promise<InvitationLookup> =>
+      this.request<InvitationLookup>('GET', `/auth/invitations/${id}/lookup`, {
+        ...options,
+        params: { token },
+      }),
+
+    /**
+     * Public (unauthenticated) accept of an invitation. For existing accounts the
+     * caller passes their password; for new accounts they pass password +
+     * confirmation + names. Either path issues a JWT + refresh-token cookie
+     * identical to `login`.
+     */
+    acceptInvitation: (
+      id: string,
+      token: string,
+      params: InvitationAcceptParams,
+      options?: RequestOptions,
+    ): Promise<AuthTokens> =>
+      this.request<AuthTokens>('POST', `/auth/invitations/${id}/accept`, {
+        ...options,
+        params: { token },
+        body: params,
+      }),
   }
 
   // ============================================
@@ -1097,6 +1157,142 @@ export class AdminClient {
       direct_upload: { url: string; headers: Record<string, string> }
       signed_id: string
     }> => this.request('POST', '/direct_uploads', { ...options, body: params }),
+  }
+
+  // ============================================
+  // Staff (admin users with role assignment on the current store)
+  // ============================================
+
+  readonly adminUsers = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<AdminUser>> =>
+      this.request<PaginatedResponse<AdminUser>>('GET', '/admin_users', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (
+      id: string,
+      params?: { expand?: string[] },
+      options?: RequestOptions,
+    ): Promise<AdminUser> =>
+      this.request<AdminUser>('GET', `/admin_users/${id}`, {
+        ...options,
+        params: getParams(params),
+      }),
+
+    update: (
+      id: string,
+      params: AdminUserUpdateParams,
+      options?: RequestOptions,
+    ): Promise<AdminUser> =>
+      this.request<AdminUser>('PATCH', `/admin_users/${id}`, { ...options, body: params }),
+
+    /**
+     * Removes the user's role assignments on the current store. The account is
+     * preserved — the user keeps access to any other stores. Mirrors the
+     * legacy "remove from staff" behaviour rather than the legacy controller's
+     * hard delete.
+     */
+    delete: (id: string, options?: RequestOptions): Promise<void> =>
+      this.request<void>('DELETE', `/admin_users/${id}`, options),
+  }
+
+  // ============================================
+  // Invitations (pending staff invitations)
+  // ============================================
+
+  readonly invitations = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<Invitation>> =>
+      this.request<PaginatedResponse<Invitation>>('GET', '/invitations', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (
+      id: string,
+      params?: { expand?: string[] },
+      options?: RequestOptions,
+    ): Promise<Invitation> =>
+      this.request<Invitation>('GET', `/invitations/${id}`, {
+        ...options,
+        params: getParams(params),
+      }),
+
+    create: (params: InvitationCreateParams, options?: RequestOptions): Promise<Invitation> =>
+      this.request<Invitation>('POST', '/invitations', { ...options, body: params }),
+
+    delete: (id: string, options?: RequestOptions): Promise<void> =>
+      this.request<void>('DELETE', `/invitations/${id}`, options),
+
+    /** Issues a fresh token + email for a pending invitation. */
+    resend: (id: string, options?: RequestOptions): Promise<Invitation> =>
+      this.request<Invitation>('PATCH', `/invitations/${id}/resend`, options),
+  }
+
+  // ============================================
+  // API Keys (publishable + secret)
+  // ============================================
+
+  readonly apiKeys = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<ApiKey>> =>
+      this.request<PaginatedResponse<ApiKey>>('GET', '/api_keys', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (id: string, params?: { expand?: string[] }, options?: RequestOptions): Promise<ApiKey> =>
+      this.request<ApiKey>('GET', `/api_keys/${id}`, {
+        ...options,
+        params: getParams(params),
+      }),
+
+    /**
+     * Creates a publishable or secret API key. For secret keys the response
+     * carries `plaintext_token` exactly once — store it client-side immediately
+     * because subsequent reads will return `null`.
+     */
+    create: (params: ApiKeyCreateParams, options?: RequestOptions): Promise<ApiKey> =>
+      this.request<ApiKey>('POST', '/api_keys', { ...options, body: params }),
+
+    update: (id: string, params: ApiKeyUpdateParams, options?: RequestOptions): Promise<ApiKey> =>
+      this.request<ApiKey>('PATCH', `/api_keys/${id}`, { ...options, body: params }),
+
+    delete: (id: string, options?: RequestOptions): Promise<void> =>
+      this.request<void>('DELETE', `/api_keys/${id}`, options),
+
+    /** Marks a key revoked without deleting the row (preserves audit history). */
+    revoke: (id: string, options?: RequestOptions): Promise<ApiKey> =>
+      this.request<ApiKey>('PATCH', `/api_keys/${id}/revoke`, options),
+  }
+
+  // ============================================
+  // Roles (read-only — for staff role pickers)
+  // ============================================
+
+  readonly roles = {
+    list: (
+      params?: ListParams & Record<string, unknown>,
+      options?: RequestOptions,
+    ): Promise<PaginatedResponse<Role>> =>
+      this.request<PaginatedResponse<Role>>('GET', '/roles', {
+        ...options,
+        params: params ? transformListParams(params) : undefined,
+      }),
+
+    get: (id: string, params?: { expand?: string[] }, options?: RequestOptions): Promise<Role> =>
+      this.request<Role>('GET', `/roles/${id}`, {
+        ...options,
+        params: getParams(params),
+      }),
   }
 }
 

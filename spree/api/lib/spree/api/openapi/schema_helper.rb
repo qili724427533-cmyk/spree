@@ -135,6 +135,15 @@ module Spree
                 quantity: { type: :integer, description: 'Quantity in this fulfillment', example: 2 }
               },
               required: %w[item_id variant_id quantity]
+            },
+            AdminUserRoleAssignment: {
+              type: :object,
+              description: 'A role assignment for the current store on a staff member',
+              properties: {
+                id: { type: :string, description: 'Prefixed role ID', example: 'role_abc123' },
+                name: { type: :string, description: 'Role name', example: 'admin' }
+              },
+              required: %w[id name]
             }
           }
         end
@@ -179,6 +188,7 @@ module Spree
             end
             patch_cart_schema(schemas)
             patch_fulfillment_schema(schemas)
+            patch_admin_user_schema(schemas)
             schemas
           end
         end
@@ -205,6 +215,24 @@ module Spree
             props[warn_key] = {
               type: :array,
               items: { '$ref' => '#/components/schemas/CartWarning' }
+            }
+          end
+        end
+
+        # Same Array<{...}> issue as cart/fulfillment — patch AdminUser#roles
+        # to reference the AdminUserRoleAssignment component schema.
+        def patch_admin_user_schema(schemas)
+          admin_user = schemas['AdminUser'] || schemas[:AdminUser]
+          return unless admin_user
+
+          props = admin_user[:properties]
+          return unless props
+
+          roles_key = props.key?('roles') ? 'roles' : :roles
+          if props[roles_key]
+            props[roles_key] = {
+              type: :array,
+              items: { '$ref' => '#/components/schemas/AdminUserRoleAssignment' }
             }
           end
         end
