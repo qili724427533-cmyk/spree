@@ -20,6 +20,22 @@ module Spree
             end
           end
 
+          # Lists available payment provider subclasses for the create form.
+          # Returns a stable shape: { type, label, description }.
+          def types
+            authorize! :create, model_class
+
+            providers = Spree::PaymentMethod.providers.map do |klass|
+              {
+                type: klass.to_s,
+                label: klass.respond_to?(:model_name) ? klass.model_name.human : klass.to_s.demodulize,
+                description: klass.respond_to?(:description) ? klass.description : nil
+              }
+            end
+
+            render json: { data: providers.sort_by { |p| p[:label] } }
+          end
+
           protected
 
           def model_class

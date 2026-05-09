@@ -38,6 +38,35 @@ RSpec.describe 'Admin Payment Methods API', type: :request, swagger_doc: 'api-re
     end
   end
 
+  path '/api/v3/admin/payment_methods/types' do
+    get 'List available payment provider types' do
+      tags 'Configuration'
+      produces 'application/json'
+      security [api_key: [], bearer_auth: []]
+      description 'Returns the registered Spree::PaymentMethod subclasses that can be used to create new payment methods. Useful for populating a "Provider" dropdown in admin UIs.'
+      admin_scope :read, :settings
+
+      admin_sdk_example <<~JS
+        const { data: types } = await client.paymentMethods.types()
+      JS
+
+      parameter name: 'x-spree-api-key', in: :header, type: :string, required: true
+      parameter name: :Authorization, in: :header, type: :string, required: true
+
+      response '200', 'provider types found' do
+        let(:'x-spree-api-key') { secret_api_key.plaintext_token }
+
+        run_test! do |response|
+          data = JSON.parse(response.body)['data']
+          expect(data).to be_an(Array)
+          expect(data).to all(include('type', 'label'))
+          # The seed data set always registers Spree::PaymentMethod::Check.
+          expect(data.map { |t| t['type'] }).to include('Spree::PaymentMethod::Check')
+        end
+      end
+    end
+  end
+
   path '/api/v3/admin/payment_methods/{id}' do
     let(:id) { payment_method.prefixed_id }
 

@@ -181,7 +181,11 @@ Spree::Core::Engine.add_routes do
         resources :stock_transfers, only: [:index, :show, :create, :destroy]
 
         # Payment Methods
-        resources :payment_methods
+        resources :payment_methods do
+          collection do
+            get :types
+          end
+        end
 
         # Tags (autocomplete for product/order/user tag inputs)
         resources :tags, only: [:index]
