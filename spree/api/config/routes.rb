@@ -166,6 +166,9 @@ Spree::Core::Engine.add_routes do
         # Tax Categories
         resources :tax_categories, only: [:index, :show]
 
+        # Store Credit Categories (read-only — for store credit dropdowns)
+        resources :store_credit_categories, only: [:index, :show]
+
         # Stock Locations
         resources :stock_locations
 
