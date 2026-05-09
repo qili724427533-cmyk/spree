@@ -130,10 +130,32 @@ module Spree
 
     def records_to_export
       if search_params.present?
-        scope.ransack(search_params.is_a?(String) ? JSON.parse(search_params.to_s).to_h : search_params)
+        params = search_params.is_a?(String) ? JSON.parse(search_params.to_s).to_h : search_params
+        scope.ransack(decode_prefixed_id_filters(params))
       else
         scope.ransack
       end.result
+    end
+
+    # Replace any prefixed IDs in `search_params` with their raw DB IDs so
+    # Ransack can match them. Without this, an admin filtering an export by
+    # a foreign key (`promotion_id_eq: 'promo_xxx'`, `vendor_id_in: [...]`)
+    # would always get zero rows. We only touch values that look like
+    # prefixed IDs — anything else (numeric IDs, code strings, ranges,
+    # state names) passes through untouched.
+    def decode_prefixed_id_filters(params)
+      params.transform_values { |value| decode_search_value(value) }
+    end
+
+    def decode_search_value(value)
+      case value
+      when String
+        Spree::PrefixedId.prefixed_id?(value) ? (Spree::PrefixedId.decode_prefixed_id(value) || value) : value
+      when Array
+        value.map { |v| decode_search_value(v) }
+      else
+        value
+      end
     end
 
     def scope_includes

@@ -78,6 +78,24 @@ RSpec.describe Spree::Export, :job, type: :model do
         expect(export.records_to_export.count).to eq(matching_products.count)
       end
     end
+
+    context 'with a prefixed-id filter' do
+      let(:target) { matching_products.first }
+      let(:search_params) { { id_eq: target.prefixed_id }.to_json }
+
+      it 'decodes prefixed IDs before handing to Ransack' do
+        expect(export.records_to_export).to contain_exactly(target)
+      end
+    end
+
+    context 'with a prefixed-id array filter' do
+      let(:targets) { matching_products.first(2) }
+      let(:search_params) { { id_in: targets.map(&:prefixed_id) }.to_json }
+
+      it 'decodes each value' do
+        expect(export.records_to_export).to match_array(targets)
+      end
+    end
   end
 
   describe '#send_export_done_email' do

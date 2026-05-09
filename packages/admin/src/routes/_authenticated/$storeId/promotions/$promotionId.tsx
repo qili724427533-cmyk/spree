@@ -1,6 +1,6 @@
 import type { PromotionAction, PromotionRule, ResourceTypeDefinition } from '@spree/admin-sdk'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { PlusIcon, TrashIcon } from 'lucide-react'
+import { DownloadIcon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Can } from '@/components/spree/can'
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useExport } from '@/hooks/use-export'
 import {
   useCreatePromotionAction,
   useCreatePromotionRule,
@@ -852,15 +853,40 @@ function PromotionCouponCodesCard({ promotionId }: { promotionId: string }) {
   const totalCount = codesData?.meta?.count ?? codes.length
   const totalPages = codesData?.meta?.pages ?? 1
 
+  const exportMutation = useExport()
+  function handleExport() {
+    exportMutation.mutate({
+      type: 'Spree::Exports::CouponCodes',
+      record_selection: 'filtered',
+      search_params: { promotion_id_eq: promotionId },
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Coupon codes</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {totalCount > 0
-            ? `${totalCount} auto-generated codes. Read-only; regenerate by changing the promotion's number-of-codes setting.`
-            : "Auto-generated codes for this promotion. Codes are read-only; regenerate by changing the promotion's number-of-codes setting."}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>Coupon codes</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {totalCount > 0
+                ? `${totalCount} auto-generated codes. Read-only; regenerate by changing the promotion's number-of-codes setting.`
+                : "Auto-generated codes for this promotion. Codes are read-only; regenerate by changing the promotion's number-of-codes setting."}
+            </p>
+          </div>
+          {totalCount > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleExport}
+              disabled={exportMutation.isPending}
+            >
+              <DownloadIcon className="size-4" />
+              {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {codes.length === 0 ? (
