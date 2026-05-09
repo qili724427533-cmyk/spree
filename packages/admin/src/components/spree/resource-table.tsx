@@ -1,6 +1,30 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useDeferredValue, useState } from 'react'
+import { GripVerticalIcon } from 'lucide-react'
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useState,
+} from 'react'
 import { z } from 'zod/v4'
 import { EmptyState } from '@/components/spree/empty-state'
 import { TableToolbar } from '@/components/spree/table-toolbar'
@@ -25,6 +49,7 @@ import {
   getTable,
   type SortOption,
 } from '@/lib/table-registry'
+import { cn } from '@/lib/utils'
 
 // ============================================================================
 // Search schema — shared by all resource table routes
@@ -106,6 +131,20 @@ interface ResourceTableProps<T> {
    * export of the active view).
    */
   actions?: ReactNode | ((ctx: ResourceActionsContext) => ReactNode)
+  /**
+   * When set, rows can be drag-reordered. The handler receives the moved
+   * row's id and its new 1-indexed position; the server is expected to
+   * handle the rest via `acts_as_list` (other rows shift around). Drag
+   * is only active when the table is sorted ascending by `positionField`
+   * (default: `position`) — otherwise reordering would be meaningless.
+   */
+  reorder?: ReorderConfig<T>
+}
+
+export interface ReorderConfig<T> {
+  onReorder: (id: string, position: number, row: T) => Promise<unknown> | unknown
+  /** Defaults to `'position'`. Override for resources that sort on a different column. */
+  positionField?: string
 }
 
 // ============================================================================
@@ -120,6 +159,7 @@ export function ResourceTable<T extends Record<string, any>>({
   title,
   defaultParams,
   actions,
+  reorder,
 }: ResourceTableProps<T>) {
   const table = getTable<T>(tableKey)
   const { token } = useAuth()
@@ -179,8 +219,54 @@ export function ResourceTable<T extends Record<string, any>>({
     enabled: !!token,
   })
 
-  const rows = data?.data ?? []
+  const fetchedRows = data?.data ?? []
   const meta = data?.meta
+
+  // Mirror the fetched rows in local state while reordering so we can swap
+  // them optimistically on drop. The mirror tracks the upstream cache by
+  // identity — TanStack returns a new array reference on every refetch, so
+  // this useEffect runs whenever the server data updates.
+  const [localRows, setLocalRows] = useState<T[]>(fetchedRows)
+  useEffect(() => {
+    setLocalRows(fetchedRows)
+  }, [fetchedRows])
+
+  const positionField = reorder?.positionField ?? 'position'
+  const reorderActive = !!reorder && sort === positionField && dir === 'asc'
+  const rows = reorderActive ? localRows : fetchedRows
+
+  // dnd-kit sensors: pointer for mouse/touch (5px activation distance keeps
+  // brief clicks on row content from starting a drag), keyboard for a11y.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id || !reorder) return
+
+      const fromIndex = localRows.findIndex((r) => r.id === active.id)
+      const toIndex = localRows.findIndex((r) => r.id === over.id)
+      if (fromIndex === -1 || toIndex === -1) return
+
+      const moved = localRows[fromIndex]
+      const next = [...localRows]
+      next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      setLocalRows(next)
+
+      try {
+        // 1-indexed position; acts_as_list shifts the rest server-side.
+        await reorder.onReorder(String(active.id), toIndex + 1, moved)
+      } catch {
+        // Rollback on failure — the next refetch will reconcile anyway.
+        setLocalRows(localRows)
+      }
+    },
+    [localRows, reorder],
+  )
 
   // Navigation helpers
   function updateSearch(updates: Record<string, unknown>) {
@@ -252,6 +338,7 @@ export function ResourceTable<T extends Record<string, any>>({
         <Table>
           <TableHeader>
             <tr>
+              {reorderActive && <TableHead className="w-8" />}
               {headerColumns.map((col) => (
                 <TableHead key={col.key} className={col.headerClassName}>
                   {col.label}
@@ -259,34 +346,70 @@ export function ResourceTable<T extends Record<string, any>>({
               ))}
             </tr>
           </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableEmpty colSpan={visibleColumns.length}>Loading...</TableEmpty>
-            ) : rows.length === 0 ? (
-              <TableEmpty colSpan={visibleColumns.length}>
-                <EmptyState
-                  compact
-                  icon={table.emptyIcon}
-                  title={table.emptyMessage ?? 'No results found'}
-                  description={
-                    deferredSearch || (filters as FilterRule[]).length > 0
-                      ? 'Try adjusting your search or filters'
-                      : undefined
-                  }
-                />
-              </TableEmpty>
-            ) : (
-              rows.map((row, i) => (
-                <TableRow key={(row as any).id ?? i}>
-                  {visibleColumns.map((col) => (
-                    <TableCell key={col.key} className={col.className}>
-                      {col.render ? col.render(row) : String((row as any)[col.key] ?? '—')}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
+          {reorderActive ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={rows.map((r) => (r as any).id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {isLoading ? (
+                    <TableEmpty colSpan={visibleColumns.length + 1}>Loading...</TableEmpty>
+                  ) : rows.length === 0 ? (
+                    <TableEmpty colSpan={visibleColumns.length + 1}>
+                      <EmptyState
+                        compact
+                        icon={table.emptyIcon}
+                        title={table.emptyMessage ?? 'No results found'}
+                        description={
+                          deferredSearch || (filters as FilterRule[]).length > 0
+                            ? 'Try adjusting your search or filters'
+                            : undefined
+                        }
+                      />
+                    </TableEmpty>
+                  ) : (
+                    rows.map((row) => (
+                      <SortableRow key={(row as any).id} row={row} columns={visibleColumns} />
+                    ))
+                  )}
+                </TableBody>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <TableBody>
+              {isLoading ? (
+                <TableEmpty colSpan={visibleColumns.length}>Loading...</TableEmpty>
+              ) : rows.length === 0 ? (
+                <TableEmpty colSpan={visibleColumns.length}>
+                  <EmptyState
+                    compact
+                    icon={table.emptyIcon}
+                    title={table.emptyMessage ?? 'No results found'}
+                    description={
+                      deferredSearch || (filters as FilterRule[]).length > 0
+                        ? 'Try adjusting your search or filters'
+                        : undefined
+                    }
+                  />
+                </TableEmpty>
+              ) : (
+                rows.map((row, i) => (
+                  <TableRow key={(row as any).id ?? i}>
+                    {visibleColumns.map((col) => (
+                      <TableCell key={col.key} className={col.className}>
+                        {col.render ? col.render(row) : String((row as any)[col.key] ?? '—')}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          )}
         </Table>
         {meta && (
           <Pagination
@@ -297,5 +420,55 @@ export function ResourceTable<T extends Record<string, any>>({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+// ============================================================================
+// SortableRow — internal row that wires dnd-kit's listeners to a leading
+// drag-handle cell. Mirrors the styling of <TableRow> from data-table.tsx.
+// ============================================================================
+
+function SortableRow<T extends Record<string, any>>({
+  row,
+  columns,
+}: {
+  row: T
+  columns: ColumnDef[]
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.id,
+  })
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'group/row hover:bg-muted/60 last:*:border-b-0',
+        isDragging && 'relative z-10 opacity-70',
+      )}
+    >
+      <TableCell className="w-8 cursor-grab touch-none text-muted-foreground active:cursor-grabbing">
+        <button
+          type="button"
+          aria-label="Drag to reorder"
+          className="flex size-6 items-center justify-center rounded hover:bg-muted"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVerticalIcon className="size-4" />
+        </button>
+      </TableCell>
+      {columns.map((col) => (
+        <TableCell key={col.key} className={col.className}>
+          {col.render ? col.render(row) : String((row as any)[col.key] ?? '—')}
+        </TableCell>
+      ))}
+    </tr>
   )
 }

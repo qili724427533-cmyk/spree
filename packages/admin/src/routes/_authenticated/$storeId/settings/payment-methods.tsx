@@ -5,6 +5,7 @@ import type {
   PaymentMethodDisplayOn,
   PaymentMethodUpdateParams,
 } from '@spree/admin-sdk'
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -65,6 +66,7 @@ const DISPLAY_ON_OPTIONS: { value: PaymentMethodDisplayOn; label: string }[] = [
 function PaymentMethodsPage() {
   const search = Route.useSearch() as z.infer<typeof paymentMethodsSearchSchema>
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const editId = search.edit
   const isCreating = !!search.new
@@ -100,6 +102,12 @@ function PaymentMethodsPage() {
             </Button>
           </Can>
         }
+        reorder={{
+          onReorder: async (id, position) => {
+            await adminClient.paymentMethods.update(id, { position })
+            queryClient.invalidateQueries({ queryKey: ['payment-methods'] })
+          },
+        }}
       />
 
       {isCreating && <CreatePaymentMethodSheet open onOpenChange={(o) => !o && closeSheet()} />}
@@ -116,7 +124,6 @@ const baseFormSchema = z.object({
   display_on: z.enum(['both', 'front_end', 'back_end']),
   active: z.boolean(),
   auto_capture: z.boolean(),
-  position: z.coerce.number().int().nonnegative().optional(),
 })
 
 const createFormSchema = baseFormSchema.extend({
@@ -132,7 +139,6 @@ const BASE_DEFAULTS: BaseFormValues = {
   display_on: 'both',
   active: true,
   auto_capture: false,
-  position: undefined,
 }
 
 const CREATE_DEFAULTS: CreateFormValues = { ...BASE_DEFAULTS, type: '' }
@@ -145,7 +151,6 @@ function valuesToCreateParams(v: CreateFormValues): PaymentMethodCreateParams {
     active: v.active,
     auto_capture: v.auto_capture,
     display_on: v.display_on,
-    position: v.position,
   }
 }
 
@@ -156,7 +161,6 @@ function valuesToUpdateParams(v: BaseFormValues): PaymentMethodUpdateParams {
     active: v.active,
     auto_capture: v.auto_capture,
     display_on: v.display_on,
-    position: v.position,
   }
 }
 
@@ -302,7 +306,6 @@ function EditPaymentMethodSheet({
       display_on: (paymentMethod.display_on as PaymentMethodDisplayOn) ?? 'both',
       active: paymentMethod.active,
       auto_capture: paymentMethod.auto_capture ?? false,
-      position: paymentMethod.position ?? undefined,
     })
     const initialPreferences = (paymentMethod.preferences as Record<string, unknown>) ?? {}
     setPreferences(initialPreferences)
@@ -457,14 +460,6 @@ function PaymentMethodFormFields({
             </Select>
           )}
         />
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="position">Position</FieldLabel>
-        <Input id="position" type="number" min={0} placeholder="0" {...form.register('position')} />
-        <span className="text-xs text-muted-foreground">
-          Lower numbers appear first in the checkout list.
-        </span>
       </Field>
 
       <Field>
