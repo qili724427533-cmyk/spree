@@ -44,7 +44,7 @@ const stockTransfersSearchSchema = resourceSearchSchema.extend({
   new: z.coerce.boolean().optional(),
 })
 
-export const Route = createFileRoute('/_authenticated/$storeId/settings/stock-transfers')({
+export const Route = createFileRoute('/_authenticated/$storeId/products/stock/transfers')({
   validateSearch: stockTransfersSearchSchema,
   component: StockTransfersPage,
 })

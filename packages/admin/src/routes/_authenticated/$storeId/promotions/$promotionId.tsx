@@ -63,6 +63,11 @@ interface BasicsFormValues {
   advertise: boolean
 }
 
+const MATCH_POLICY_OPTIONS = [
+  { value: 'all', label: 'All rules must match' },
+  { value: 'any', label: 'Any rule may match' },
+] as const
+
 function EditPromotionPage() {
   const { storeId, promotionId } = Route.useParams()
   const navigate = useNavigate()
@@ -252,13 +257,20 @@ function PromotionBasicsCard({ form, promotion }: PromotionBasicsCardProps) {
               name="match_policy"
               control={form.control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  items={MATCH_POLICY_OPTIONS}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
                   <SelectTrigger id="match_policy">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All rules must match</SelectItem>
-                    <SelectItem value="any">Any rule may match</SelectItem>
+                    {MATCH_POLICY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}

@@ -57,6 +57,16 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>
 
+const KIND_OPTIONS = [
+  { value: 'coupon_code', label: 'Coupon code' },
+  { value: 'automatic', label: 'Automatic (no code)' },
+] as const
+
+const MATCH_POLICY_OPTIONS = [
+  { value: 'all', label: 'All rules must match' },
+  { value: 'any', label: 'Any rule may match' },
+] as const
+
 // Server expects a coherent set: automatic clears all coupon fields,
 // single-code sets `code`, multi-code sets `number_of_codes` + optional
 // prefix. Centralized so the create body stays flat.
@@ -196,13 +206,20 @@ function NewPromotionPage() {
                       name="kind"
                       control={form.control}
                       render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          items={KIND_OPTIONS}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
                           <SelectTrigger id="kind">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="coupon_code">Coupon code</SelectItem>
-                            <SelectItem value="automatic">Automatic (no code)</SelectItem>
+                            {KIND_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
@@ -329,13 +346,20 @@ function NewPromotionPage() {
                       name="match_policy"
                       control={form.control}
                       render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          items={MATCH_POLICY_OPTIONS}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
                           <SelectTrigger id="match_policy">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All rules must match</SelectItem>
-                            <SelectItem value="any">Any rule may match</SelectItem>
+                            {MATCH_POLICY_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}

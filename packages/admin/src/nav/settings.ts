@@ -1,5 +1,4 @@
 import {
-  ArrowLeftRightIcon,
   CreditCardIcon,
   KeyRoundIcon,
   PercentIcon,
@@ -53,16 +52,6 @@ settingsNav.add({
   group: 'fulfillment',
   position: 100,
   subject: Subject.StockLocation,
-})
-
-settingsNav.add({
-  key: 'settings.stock-transfers',
-  label: 'Stock transfers',
-  path: '/stock-transfers',
-  icon: ArrowLeftRightIcon,
-  group: 'fulfillment',
-  position: 200,
-  subject: Subject.StockTransfer,
 })
 
 settingsNav.add({

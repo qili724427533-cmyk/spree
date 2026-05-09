@@ -209,7 +209,11 @@ function CreatePaymentMethodSheet({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger id="type" aria-invalid={!!form.formState.errors.type}>
-                      <SelectValue placeholder={loadingTypes ? 'Loading…' : 'Select a provider'} />
+                      <SelectValue placeholder={loadingTypes ? 'Loading…' : 'Select a provider'}>
+                        {(value) =>
+                          providerTypes.find((t) => t.type === value)?.label ?? (value as string)
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {providerTypes.map((t) => (
@@ -425,7 +429,7 @@ function PaymentMethodFormFields({
           name="display_on"
           control={form.control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select items={DISPLAY_ON_OPTIONS} value={field.value} onValueChange={field.onChange}>
               <SelectTrigger id="display_on">
                 <SelectValue />
               </SelectTrigger>

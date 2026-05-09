@@ -23,7 +23,6 @@ import { Route as AuthenticatedStoreIdOrdersIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedStoreIdCustomersIndexRouteImport } from './routes/_authenticated/$storeId/customers/index'
 import { Route as AuthenticatedStoreIdSettingsTaxCategoriesRouteImport } from './routes/_authenticated/$storeId/settings/tax-categories'
 import { Route as AuthenticatedStoreIdSettingsStoreRouteImport } from './routes/_authenticated/$storeId/settings/store'
-import { Route as AuthenticatedStoreIdSettingsStockTransfersRouteImport } from './routes/_authenticated/$storeId/settings/stock-transfers'
 import { Route as AuthenticatedStoreIdSettingsStockLocationsRouteImport } from './routes/_authenticated/$storeId/settings/stock-locations'
 import { Route as AuthenticatedStoreIdSettingsStaffRouteImport } from './routes/_authenticated/$storeId/settings/staff'
 import { Route as AuthenticatedStoreIdSettingsPaymentMethodsRouteImport } from './routes/_authenticated/$storeId/settings/payment-methods'
@@ -35,6 +34,7 @@ import { Route as AuthenticatedStoreIdOrdersNewRouteImport } from './routes/_aut
 import { Route as AuthenticatedStoreIdOrdersDraftsRouteImport } from './routes/_authenticated/$storeId/orders/drafts'
 import { Route as AuthenticatedStoreIdOrdersOrderIdRouteImport } from './routes/_authenticated/$storeId/orders/$orderId'
 import { Route as AuthenticatedStoreIdCustomersCustomerIdRouteImport } from './routes/_authenticated/$storeId/customers/$customerId'
+import { Route as AuthenticatedStoreIdProductsStockTransfersRouteImport } from './routes/_authenticated/$storeId/products/stock/transfers'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -115,12 +115,6 @@ const AuthenticatedStoreIdSettingsStoreRoute =
     path: '/store',
     getParentRoute: () => AuthenticatedStoreIdSettingsRoute,
   } as any)
-const AuthenticatedStoreIdSettingsStockTransfersRoute =
-  AuthenticatedStoreIdSettingsStockTransfersRouteImport.update({
-    id: '/stock-transfers',
-    path: '/stock-transfers',
-    getParentRoute: () => AuthenticatedStoreIdSettingsRoute,
-  } as any)
 const AuthenticatedStoreIdSettingsStockLocationsRoute =
   AuthenticatedStoreIdSettingsStockLocationsRouteImport.update({
     id: '/stock-locations',
@@ -187,6 +181,12 @@ const AuthenticatedStoreIdCustomersCustomerIdRoute =
     path: '/customers/$customerId',
     getParentRoute: () => AuthenticatedStoreIdRoute,
   } as any)
+const AuthenticatedStoreIdProductsStockTransfersRoute =
+  AuthenticatedStoreIdProductsStockTransfersRouteImport.update({
+    id: '/products/stock/transfers',
+    path: '/products/stock/transfers',
+    getParentRoute: () => AuthenticatedStoreIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -206,7 +206,6 @@ export interface FileRoutesByFullPath {
   '/$storeId/settings/payment-methods': typeof AuthenticatedStoreIdSettingsPaymentMethodsRoute
   '/$storeId/settings/staff': typeof AuthenticatedStoreIdSettingsStaffRoute
   '/$storeId/settings/stock-locations': typeof AuthenticatedStoreIdSettingsStockLocationsRoute
-  '/$storeId/settings/stock-transfers': typeof AuthenticatedStoreIdSettingsStockTransfersRoute
   '/$storeId/settings/store': typeof AuthenticatedStoreIdSettingsStoreRoute
   '/$storeId/settings/tax-categories': typeof AuthenticatedStoreIdSettingsTaxCategoriesRoute
   '/$storeId/customers/': typeof AuthenticatedStoreIdCustomersIndexRoute
@@ -214,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/$storeId/products/': typeof AuthenticatedStoreIdProductsIndexRoute
   '/$storeId/promotions/': typeof AuthenticatedStoreIdPromotionsIndexRoute
   '/$storeId/settings/': typeof AuthenticatedStoreIdSettingsIndexRoute
+  '/$storeId/products/stock/transfers': typeof AuthenticatedStoreIdProductsStockTransfersRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -231,7 +231,6 @@ export interface FileRoutesByTo {
   '/$storeId/settings/payment-methods': typeof AuthenticatedStoreIdSettingsPaymentMethodsRoute
   '/$storeId/settings/staff': typeof AuthenticatedStoreIdSettingsStaffRoute
   '/$storeId/settings/stock-locations': typeof AuthenticatedStoreIdSettingsStockLocationsRoute
-  '/$storeId/settings/stock-transfers': typeof AuthenticatedStoreIdSettingsStockTransfersRoute
   '/$storeId/settings/store': typeof AuthenticatedStoreIdSettingsStoreRoute
   '/$storeId/settings/tax-categories': typeof AuthenticatedStoreIdSettingsTaxCategoriesRoute
   '/$storeId/customers': typeof AuthenticatedStoreIdCustomersIndexRoute
@@ -239,6 +238,7 @@ export interface FileRoutesByTo {
   '/$storeId/products': typeof AuthenticatedStoreIdProductsIndexRoute
   '/$storeId/promotions': typeof AuthenticatedStoreIdPromotionsIndexRoute
   '/$storeId/settings': typeof AuthenticatedStoreIdSettingsIndexRoute
+  '/$storeId/products/stock/transfers': typeof AuthenticatedStoreIdProductsStockTransfersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -260,7 +260,6 @@ export interface FileRoutesById {
   '/_authenticated/$storeId/settings/payment-methods': typeof AuthenticatedStoreIdSettingsPaymentMethodsRoute
   '/_authenticated/$storeId/settings/staff': typeof AuthenticatedStoreIdSettingsStaffRoute
   '/_authenticated/$storeId/settings/stock-locations': typeof AuthenticatedStoreIdSettingsStockLocationsRoute
-  '/_authenticated/$storeId/settings/stock-transfers': typeof AuthenticatedStoreIdSettingsStockTransfersRoute
   '/_authenticated/$storeId/settings/store': typeof AuthenticatedStoreIdSettingsStoreRoute
   '/_authenticated/$storeId/settings/tax-categories': typeof AuthenticatedStoreIdSettingsTaxCategoriesRoute
   '/_authenticated/$storeId/customers/': typeof AuthenticatedStoreIdCustomersIndexRoute
@@ -268,6 +267,7 @@ export interface FileRoutesById {
   '/_authenticated/$storeId/products/': typeof AuthenticatedStoreIdProductsIndexRoute
   '/_authenticated/$storeId/promotions/': typeof AuthenticatedStoreIdPromotionsIndexRoute
   '/_authenticated/$storeId/settings/': typeof AuthenticatedStoreIdSettingsIndexRoute
+  '/_authenticated/$storeId/products/stock/transfers': typeof AuthenticatedStoreIdProductsStockTransfersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -289,7 +289,6 @@ export interface FileRouteTypes {
     | '/$storeId/settings/payment-methods'
     | '/$storeId/settings/staff'
     | '/$storeId/settings/stock-locations'
-    | '/$storeId/settings/stock-transfers'
     | '/$storeId/settings/store'
     | '/$storeId/settings/tax-categories'
     | '/$storeId/customers/'
@@ -297,6 +296,7 @@ export interface FileRouteTypes {
     | '/$storeId/products/'
     | '/$storeId/promotions/'
     | '/$storeId/settings/'
+    | '/$storeId/products/stock/transfers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -314,7 +314,6 @@ export interface FileRouteTypes {
     | '/$storeId/settings/payment-methods'
     | '/$storeId/settings/staff'
     | '/$storeId/settings/stock-locations'
-    | '/$storeId/settings/stock-transfers'
     | '/$storeId/settings/store'
     | '/$storeId/settings/tax-categories'
     | '/$storeId/customers'
@@ -322,6 +321,7 @@ export interface FileRouteTypes {
     | '/$storeId/products'
     | '/$storeId/promotions'
     | '/$storeId/settings'
+    | '/$storeId/products/stock/transfers'
   id:
     | '__root__'
     | '/_authenticated'
@@ -342,7 +342,6 @@ export interface FileRouteTypes {
     | '/_authenticated/$storeId/settings/payment-methods'
     | '/_authenticated/$storeId/settings/staff'
     | '/_authenticated/$storeId/settings/stock-locations'
-    | '/_authenticated/$storeId/settings/stock-transfers'
     | '/_authenticated/$storeId/settings/store'
     | '/_authenticated/$storeId/settings/tax-categories'
     | '/_authenticated/$storeId/customers/'
@@ -350,6 +349,7 @@ export interface FileRouteTypes {
     | '/_authenticated/$storeId/products/'
     | '/_authenticated/$storeId/promotions/'
     | '/_authenticated/$storeId/settings/'
+    | '/_authenticated/$storeId/products/stock/transfers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -458,13 +458,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStoreIdSettingsStoreRouteImport
       parentRoute: typeof AuthenticatedStoreIdSettingsRoute
     }
-    '/_authenticated/$storeId/settings/stock-transfers': {
-      id: '/_authenticated/$storeId/settings/stock-transfers'
-      path: '/stock-transfers'
-      fullPath: '/$storeId/settings/stock-transfers'
-      preLoaderRoute: typeof AuthenticatedStoreIdSettingsStockTransfersRouteImport
-      parentRoute: typeof AuthenticatedStoreIdSettingsRoute
-    }
     '/_authenticated/$storeId/settings/stock-locations': {
       id: '/_authenticated/$storeId/settings/stock-locations'
       path: '/stock-locations'
@@ -542,6 +535,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStoreIdCustomersCustomerIdRouteImport
       parentRoute: typeof AuthenticatedStoreIdRoute
     }
+    '/_authenticated/$storeId/products/stock/transfers': {
+      id: '/_authenticated/$storeId/products/stock/transfers'
+      path: '/products/stock/transfers'
+      fullPath: '/$storeId/products/stock/transfers'
+      preLoaderRoute: typeof AuthenticatedStoreIdProductsStockTransfersRouteImport
+      parentRoute: typeof AuthenticatedStoreIdRoute
+    }
   }
 }
 
@@ -550,7 +550,6 @@ interface AuthenticatedStoreIdSettingsRouteChildren {
   AuthenticatedStoreIdSettingsPaymentMethodsRoute: typeof AuthenticatedStoreIdSettingsPaymentMethodsRoute
   AuthenticatedStoreIdSettingsStaffRoute: typeof AuthenticatedStoreIdSettingsStaffRoute
   AuthenticatedStoreIdSettingsStockLocationsRoute: typeof AuthenticatedStoreIdSettingsStockLocationsRoute
-  AuthenticatedStoreIdSettingsStockTransfersRoute: typeof AuthenticatedStoreIdSettingsStockTransfersRoute
   AuthenticatedStoreIdSettingsStoreRoute: typeof AuthenticatedStoreIdSettingsStoreRoute
   AuthenticatedStoreIdSettingsTaxCategoriesRoute: typeof AuthenticatedStoreIdSettingsTaxCategoriesRoute
   AuthenticatedStoreIdSettingsIndexRoute: typeof AuthenticatedStoreIdSettingsIndexRoute
@@ -566,8 +565,6 @@ const AuthenticatedStoreIdSettingsRouteChildren: AuthenticatedStoreIdSettingsRou
       AuthenticatedStoreIdSettingsStaffRoute,
     AuthenticatedStoreIdSettingsStockLocationsRoute:
       AuthenticatedStoreIdSettingsStockLocationsRoute,
-    AuthenticatedStoreIdSettingsStockTransfersRoute:
-      AuthenticatedStoreIdSettingsStockTransfersRoute,
     AuthenticatedStoreIdSettingsStoreRoute:
       AuthenticatedStoreIdSettingsStoreRoute,
     AuthenticatedStoreIdSettingsTaxCategoriesRoute:
@@ -595,6 +592,7 @@ interface AuthenticatedStoreIdRouteChildren {
   AuthenticatedStoreIdOrdersIndexRoute: typeof AuthenticatedStoreIdOrdersIndexRoute
   AuthenticatedStoreIdProductsIndexRoute: typeof AuthenticatedStoreIdProductsIndexRoute
   AuthenticatedStoreIdPromotionsIndexRoute: typeof AuthenticatedStoreIdPromotionsIndexRoute
+  AuthenticatedStoreIdProductsStockTransfersRoute: typeof AuthenticatedStoreIdProductsStockTransfersRoute
 }
 
 const AuthenticatedStoreIdRouteChildren: AuthenticatedStoreIdRouteChildren = {
@@ -620,6 +618,8 @@ const AuthenticatedStoreIdRouteChildren: AuthenticatedStoreIdRouteChildren = {
     AuthenticatedStoreIdProductsIndexRoute,
   AuthenticatedStoreIdPromotionsIndexRoute:
     AuthenticatedStoreIdPromotionsIndexRoute,
+  AuthenticatedStoreIdProductsStockTransfersRoute:
+    AuthenticatedStoreIdProductsStockTransfersRoute,
 }
 
 const AuthenticatedStoreIdRouteWithChildren =

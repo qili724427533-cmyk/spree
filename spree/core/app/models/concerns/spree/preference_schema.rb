@@ -46,11 +46,22 @@ module Spree
         registered_subclasses.map do |klass|
           {
             type: klass.to_s,
-            label: klass.respond_to?(:model_name) ? klass.model_name.human : klass.to_s.demodulize,
+            label: subclass_label(klass),
             description: klass.respond_to?(:description) ? klass.description : nil,
             preference_schema: klass.respond_to?(:preference_schema) ? klass.preference_schema : []
           }
         end.sort_by { |entry| entry[:label] }
+      end
+
+      # STI subclasses share the parent's `model_name`, so calling
+      # `klass.model_name.human` would return "Payment Method" for every
+      # entry. Derive a human label from the demodulized class name
+      # ("Spree::PaymentMethod::BogusGateway" → "Bogus Gateway") and let
+      # individual subclasses override via a class-level `display_name`.
+      def subclass_label(klass)
+        return klass.display_name if klass.respond_to?(:display_name) && klass.display_name.present?
+
+        klass.to_s.demodulize.titleize
       end
 
       private
