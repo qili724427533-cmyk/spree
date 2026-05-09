@@ -8,6 +8,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import {
+  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -252,9 +253,7 @@ export function ResourceTable<T extends Record<string, any>>({
       if (fromIndex === -1 || toIndex === -1) return
 
       const moved = localRows[fromIndex]
-      const next = [...localRows]
-      next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
+      const next = arrayMove(localRows, fromIndex, toIndex)
       setLocalRows(next)
 
       try {
