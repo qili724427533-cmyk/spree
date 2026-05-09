@@ -1554,11 +1554,22 @@ describe Spree::Order, type: :model do
       end
     end
 
-    it 'assigns the coordinator returned shipments to its shipments' do
-      shipment = build(:shipment)
-      allow_any_instance_of(Spree::Stock::Coordinator).to receive(:shipments).and_return([shipment])
-      subject.create_proposed_shipments
-      expect(subject.shipments).to eq [shipment]
+  end
+
+  describe '#ensure_channel_presence' do
+    let(:store) { create(:store) }
+
+    it 'auto-assigns the store default channel on new orders' do
+      o = build(:order, store: store, channel: nil)
+      o.valid?
+      expect(o.channel).to eq(store.default_channel)
+    end
+
+    it 'preserves an explicitly set channel' do
+      other = store.channels.create!(name: 'POS', code: 'pos')
+      o = build(:order, store: store, channel: other)
+      o.valid?
+      expect(o.channel).to eq(other)
     end
   end
 

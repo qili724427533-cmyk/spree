@@ -173,6 +173,37 @@ describe Spree::Store, type: :model, without_global_store: true do
           end
         end
       end
+
+      describe '#seed_default_channel' do
+        let(:store) { build(:store) }
+
+        it 'creates an "online" channel on save' do
+          expect { store.save! }.to change(Spree::Channel, :count).by(1)
+
+          channel = store.channels.first
+          expect(channel.code).to eq('online')
+          expect(channel.name).to eq('Online Store')
+          expect(channel).to be_active
+        end
+
+        it 'is idempotent' do
+          store.save!
+          expect { store.send(:seed_default_channel) }.not_to change(Spree::Channel, :count)
+        end
+      end
+
+      describe '#default_channel' do
+        let(:store) { create(:store) }
+
+        it 'returns the seeded online channel' do
+          expect(store.default_channel.code).to eq('online')
+        end
+
+        it 'falls back to first active channel when no online channel exists' do
+          store.channels.find_by(code: 'online').update!(code: 'web')
+          expect(store.default_channel.code).to eq('web')
+        end
+      end
     end
 
     describe '#ensure_default_market' do

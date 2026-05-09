@@ -109,6 +109,8 @@ module Spree
     has_many :webhook_endpoints, class_name: 'Spree::WebhookEndpoint', dependent: :destroy, inverse_of: :store
     has_many :webhook_deliveries, through: :webhook_endpoints, class_name: 'Spree::WebhookDelivery'
 
+    has_many :channels, class_name: 'Spree::Channel', dependent: :destroy
+
     has_many :customer_groups, class_name: 'Spree::CustomerGroup', dependent: :destroy, inverse_of: :store
 
     has_many :api_keys, class_name: 'Spree::ApiKey', dependent: :destroy
@@ -145,6 +147,7 @@ module Spree
     before_save :ensure_default_exists_and_is_unique
     after_create :ensure_default_market
     after_create :create_default_policies
+    after_create :seed_default_channel
 
     #
     # Scopes
@@ -175,6 +178,13 @@ module Spree
 
     def self.available_locales
       Spree::Store.default&.supported_locales_list || []
+    end
+
+    # The Channel new orders default to when no other context is provided.
+    # 5.5 always seeds an 'online' channel; merchants can rename or add
+    # alongside it in 6.0.
+    def default_channel
+      channels.find_by(code: 'online') || channels.active.first
     end
 
     # @deprecated Use Markets instead. Will be removed in Spree 5.5.
@@ -401,6 +411,14 @@ module Spree
           policies.create(name: policy_name)
         end
       end
+    end
+
+    # 5.5 ships one Channel per Store ('online'). 6.0 channels admin lets
+    # merchants add POS / wholesale / etc. See docs/plans/6.0-channels-catalogs-b2b.md.
+    def seed_default_channel
+      return if channels.any?
+
+      channels.create!(name: 'Online Store', code: 'online')
     end
 
     def ensure_default_taxonomies_are_created

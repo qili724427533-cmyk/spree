@@ -104,10 +104,10 @@ module Spree
       go_to_state :complete
     end
 
-    self.whitelisted_ransackable_associations = %w[shipments user created_by approver canceler promotions bill_address ship_address line_items store]
+    self.whitelisted_ransackable_associations = %w[shipments user created_by approver canceler promotions bill_address ship_address line_items store channel]
     self.whitelisted_ransackable_attributes = %w[
       completed_at email number state status payment_state shipment_state
-      total item_total item_count considered_risky channel
+      total item_total item_count considered_risky channel_id
     ]
     self.whitelisted_ransackable_scopes = %w[complete incomplete refunded partially_refunded search multi_search]
 
@@ -159,6 +159,7 @@ module Spree
 
     belongs_to :store, class_name: 'Spree::Store'
     belongs_to :market, class_name: 'Spree::Market', optional: true
+    belongs_to :channel, class_name: 'Spree::Channel', optional: true
 
     with_options dependent: :destroy do
       has_many :state_changes, as: :stateful, class_name: 'Spree::StateChange'
@@ -216,6 +217,7 @@ module Spree
     # Needs to happen before save_permalink is called
     before_validation :ensure_store_presence
     before_validation :ensure_market_presence
+    before_validation :ensure_channel_presence
     before_validation :ensure_currency_presence
     before_validation :ensure_locale_presence
     before_validation :resolve_market_from_currency, if: -> { persisted? && currency_changed? && !skip_market_resolution }
@@ -494,6 +496,10 @@ module Spree
 
     def ensure_market_presence
       self.market ||= Spree::Current.market || store&.default_market
+    end
+
+    def ensure_channel_presence
+      self.channel ||= store&.default_channel
     end
 
     def allow_cancel?
