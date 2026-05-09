@@ -1,5 +1,6 @@
 import type { State } from '@spree/admin-sdk'
 import { useMemo } from 'react'
+import { CountryFlag } from '@/components/spree/country-flag'
 import {
   Combobox,
   ComboboxContent,
@@ -8,14 +9,8 @@ import {
   ComboboxItem,
   ComboboxList,
 } from '@/components/ui/combobox'
+import { InputGroupAddon } from '@/components/ui/input-group'
 import { useCountries } from '@/hooks/use-countries'
-
-/** 2-letter ISO code → flag emoji ("US" → "🇺🇸"). */
-export function countryFlag(iso: string): string {
-  return [...iso.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join('')
-}
 
 type CountryOption = { iso: string; name: string }
 type StateOption = { abbr: string; name: string }
@@ -73,18 +68,26 @@ export function CountryCombobox({
       items={items}
       value={selected}
       onValueChange={(c: CountryOption | null) => onValueChange(c?.iso ?? '')}
-      itemToStringLabel={(c: CountryOption | null) =>
-        c?.iso ? `${countryFlag(c.iso)} ${c.name}` : (c?.name ?? '')
-      }
+      itemToStringLabel={(c: CountryOption | null) => c?.name ?? ''}
       itemToStringValue={(c: CountryOption | null) => c?.iso ?? ''}
     >
-      <ComboboxInput placeholder={placeholder} disabled={disabled} />
+      <ComboboxInput placeholder={placeholder} disabled={disabled}>
+        {/* When a country is picked the InputGroup gets a leading flag —
+            mirrors the dropdown items so the trigger shows the same shape.
+            Hidden while empty so the input doesn't lurch when typing a new
+            search query. */}
+        {selected?.iso && (
+          <InputGroupAddon align="inline-start">
+            <CountryFlag iso={selected.iso} />
+          </InputGroupAddon>
+        )}
+      </ComboboxInput>
       <ComboboxContent>
         <ComboboxEmpty>No countries found</ComboboxEmpty>
         <ComboboxList>
           {(country: CountryOption) => (
             <ComboboxItem key={country.iso} value={country}>
-              <span className="mr-1.5">{countryFlag(country.iso)}</span>
+              <CountryFlag iso={country.iso} />
               {country.name}
             </ComboboxItem>
           )}
