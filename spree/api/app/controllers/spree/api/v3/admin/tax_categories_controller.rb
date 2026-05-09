@@ -14,10 +14,6 @@ module Spree
           def serializer_class
             Spree.api.admin_tax_category_serializer
           end
-
-          def permitted_params
-            params.permit(:name, :tax_code, :description, :is_default)
-          end
         end
       end
     end

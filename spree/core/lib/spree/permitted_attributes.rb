@@ -168,7 +168,7 @@ module Spree
 
     @@payment_attributes = [:amount, :payment_method_id, :payment_method]
 
-    @@payment_method_attributes = [:name, :type, :description, :active, :display_on, :auto_capture, :position]
+    @@payment_method_attributes = [:name, :type, :description, :active, :display_on, :auto_capture, :position, { metadata: {} }]
 
     @@payment_session_attributes = [:amount, :payment_method_id, { external_data: {} }]
 
@@ -250,7 +250,7 @@ module Spree
       :gateway_payment_profile_id, :last_digits, :name, :encrypted_data
     ]
 
-    @@stock_item_attributes = [:variant_id, :stock_location_id, :backorderable, :count_on_hand]
+    @@stock_item_attributes = [:variant_id, :stock_location_id, :backorderable, :count_on_hand, { metadata: {} }]
 
     @@stock_location_attributes = [
       :name, :active, :address1, :address2, :city, :zipcode, :company,

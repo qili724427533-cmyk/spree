@@ -6,12 +6,12 @@ module Spree
           scoped_resource :settings
 
           def create
-            klass = resolve_subclass(params[:type])
-            return render_unknown_type if klass.nil?
+            klass = resolve_subclass(permitted_params[:type])
+            return render_unknown_type unless klass
 
-            @resource = klass.new(permitted_params)
-            authorize_resource!(@resource, :create)
+            @resource = klass.new(permitted_params.except(:type))
             @resource.stores = [current_store] if @resource.stores.empty?
+            authorize_resource!(@resource, :create)
 
             if @resource.save
               render json: serialize_resource(@resource), status: :created
@@ -30,16 +30,12 @@ module Spree
             Spree.api.admin_payment_method_serializer
           end
 
-          def scope
-            current_store.payment_methods.accessible_by(current_ability, :show)
-          end
-
-          def permitted_params
-            params.permit(:name, :description, :active, :display_on, :auto_capture, :position, metadata: {})
-          end
-
           private
 
+          # Looks up `type` against `Spree::PaymentMethod.providers` (the
+          # registered allowlist) so callers can't constantize arbitrary
+          # classes. Returns `Spree::PaymentMethod` itself when type is blank
+          # so the model layer can surface its own validation error.
           def resolve_subclass(type_name)
             return Spree::PaymentMethod if type_name.blank?
 

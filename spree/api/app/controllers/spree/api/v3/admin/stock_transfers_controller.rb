@@ -2,29 +2,20 @@ module Spree
   module Api
     module V3
       module Admin
-        # Inventory movement between stock locations, or external →
-        # location for receives. Pass `source_location_id` for transfers,
-        # omit it for receives (vendor stock arriving). Each request body
-        # carries a `variants` array of `{ variant_id, quantity }` pairs;
-        # the model fans them out across `stock_movements` and adjusts the
-        # source/destination `count_on_hand` atomically.
+        # Inventory movement between stock locations, or vendor → location
+        # for receives. Pass `source_location_id` for transfers; omit it to
+        # record an external receive.
         class StockTransfersController < ResourceController
           scoped_resource :settings
 
           def create
             authorize!(:create, model_class)
 
-            destination = find_stock_location!(params[:destination_location_id])
-            return if destination.nil?
+            destination = Spree::StockLocation.find_by_prefix_id!(params[:destination_location_id])
+            source = params[:source_location_id].present? ?
+              Spree::StockLocation.find_by_prefix_id!(params[:source_location_id]) : nil
 
-            source = nil
-            if params[:source_location_id].present?
-              source = find_stock_location!(params[:source_location_id])
-              return if source.nil?
-            end
-
-            variants_map = build_variants_map(params[:variants])
-
+            variants_map = build_variants_map
             if variants_map.empty?
               return render_error(
                 code: 'invalid_variants',
@@ -33,13 +24,11 @@ module Spree
               )
             end
 
-            @resource = Spree::StockTransfer.new(
-              source_location: source,
-              destination_location: destination,
-              reference: params[:reference]
-            )
+            @resource = source ?
+              Spree::StockTransfer.new(reference: params[:reference]).tap { |t| t.transfer(source, destination, variants_map) } :
+              Spree::StockTransfer.new(reference: params[:reference]).tap { |t| t.receive(destination, variants_map) }
 
-            if @resource.transfer(source, destination, variants_map)
+            if @resource.persisted?
               render json: serialize_resource(@resource), status: :created
             else
               render_validation_error(@resource.errors)
@@ -62,36 +51,21 @@ module Spree
 
           private
 
-          def find_stock_location!(prefixed_id)
-            location = Spree::StockLocation.find_by_prefix_id(prefixed_id)
-            return location if location
+          # Variants the merchant doesn't have access to are dropped silently;
+          # if the resulting map is empty the action surfaces a 422
+          # `invalid_variants` so callers can distinguish "nothing supplied"
+          # from "all variants were rejected." A single SELECT covers any
+          # number of variants instead of N round-trips.
+          def build_variants_map
+            entries = params.permit(variants: [:variant_id, :quantity]).fetch(:variants, [])
+            quantities_by_id = entries.each_with_object({}) do |entry, hash|
+              decoded = Spree::PrefixedId.decode_prefixed_id(entry[:variant_id])
+              hash[decoded.to_i] = entry[:quantity].to_i if decoded
+            end
 
-            render_error(
-              code: 'stock_location_not_found',
-              message: Spree.t(:resource_not_found, scope: :api),
-              status: :not_found
-            )
-            nil
-          end
-
-          # Resolves the request's `[{ variant_id, quantity }]` payload into
-          # the `{ variant => quantity }` hash `StockTransfer#transfer`
-          # expects. Variants the merchant doesn't have access to (or that
-          # don't exist) are simply dropped — the model layer's
-          # `stock_movements_not_empty` validation surfaces a 422 if the
-          # final hash ends up empty.
-          def build_variants_map(input)
-            entries = input.respond_to?(:each) ? input.to_a : []
-
-            entries.each_with_object({}) do |entry, acc|
-              hash = entry.respond_to?(:to_unsafe_h) ? entry.to_unsafe_h : entry
-              next unless hash.is_a?(Hash)
-
-              variant = Spree::Variant.find_by_prefix_id(hash[:variant_id] || hash['variant_id'])
-              quantity = (hash[:quantity] || hash['quantity']).to_i
-              next if variant.nil? || quantity.zero?
-
-              acc[variant] = quantity
+            Spree::Variant.where(id: quantities_by_id.keys).each_with_object({}) do |variant, acc|
+              quantity = quantities_by_id[variant.id]
+              acc[variant] = quantity if quantity&.positive?
             end
           end
         end
