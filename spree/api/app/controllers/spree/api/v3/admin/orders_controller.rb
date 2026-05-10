@@ -137,30 +137,36 @@ module Spree
           end
 
           def order_create_params
-            params.permit(
-              :email, :customer_id, :user_id, :use_customer_default_address,
-              :currency, :market_id, :locale,
-              :customer_note, :internal_note,
-              :shipping_address_id, :billing_address_id,
-              :coupon_code,
-              metadata: {},
-              tags: [],
-              shipping_address: address_permitted_keys,
-              billing_address: address_permitted_keys,
-              items: item_permitted_keys
+            normalize_params(
+              params.permit(
+                :email, :customer_id, :user_id, :use_customer_default_address,
+                :currency, :market_id, :channel_id, :locale,
+                :customer_note, :internal_note,
+                :shipping_address_id, :billing_address_id,
+                :preferred_stock_location_id,
+                :coupon_code,
+                metadata: {},
+                tags: [],
+                shipping_address: address_permitted_keys,
+                billing_address: address_permitted_keys,
+                items: item_permitted_keys
+              )
             )
           end
 
           def order_update_params
-            params.permit(
-              :email, :customer_id, :user_id,
-              :customer_note, :internal_note,
-              :currency, :locale, :market_id,
-              metadata: {},
-              tags: [],
-              ship_address: address_permitted_keys,
-              bill_address: address_permitted_keys,
-              items: item_permitted_keys
+            normalize_params(
+              params.permit(
+                :email, :customer_id, :user_id,
+                :customer_note, :internal_note,
+                :currency, :locale, :market_id, :channel_id,
+                :preferred_stock_location_id,
+                metadata: {},
+                tags: [],
+                ship_address: address_permitted_keys,
+                bill_address: address_permitted_keys,
+                items: item_permitted_keys
+              )
             )
           end
 

@@ -59,13 +59,23 @@ module Spree
         }
 
         attrs[:market] = resolve_market if @params[:market_id].present?
+        attrs[:channel] = resolve_channel if @params[:channel_id].present?
+        attrs[:preferred_stock_location] = resolve_preferred_stock_location if @params[:preferred_stock_location_id].present?
         attrs.compact_blank!
 
         @store.orders.new(attrs)
       end
 
       def resolve_market
-        @store.markets.find_by_prefix_id!(@params[:market_id])
+        @store.markets.find_by_param!(@params[:market_id])
+      end
+
+      def resolve_channel
+        @store.channels.find_by_param!(@params[:channel_id])
+      end
+
+      def resolve_preferred_stock_location
+        Spree::StockLocation.for_store(@store).find_by_param!(@params[:preferred_stock_location_id])
       end
 
       def assign_addresses(order)
@@ -89,11 +99,10 @@ module Spree
         end
       end
 
-      def resolve_user_address(prefixed_id)
+      def resolve_user_address(address_id)
         return unless @user
 
-        decoded = Spree::Address.decode_prefixed_id(prefixed_id)
-        decoded ? @user.addresses.find_by(id: decoded) : nil
+        @user.addresses.find_by_param(address_id)
       end
 
       def add_items(order)

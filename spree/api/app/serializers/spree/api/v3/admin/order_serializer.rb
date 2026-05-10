@@ -13,6 +13,7 @@ module Spree
                    internal_note: [:string, nullable: true], approver_id: [:string, nullable: true],
                    canceler_id: [:string, nullable: true], created_by_id: [:string, nullable: true],
                    customer_id: [:string, nullable: true],
+                   preferred_stock_location_id: [:string, nullable: true],
                    canceled_at: [:string, nullable: true], approved_at: [:string, nullable: true],
                    payment_total: :string, display_payment_total: :string,
                    tags: [:string, multi: true],
@@ -24,6 +25,10 @@ module Spree
                      :payment_total, :display_payment_total, :metadata,
                      canceled_at: :iso8601, approved_at: :iso8601,
                      created_at: :iso8601, updated_at: :iso8601
+
+          attribute :preferred_stock_location_id do |order|
+            order.preferred_stock_location&.prefixed_id
+          end
 
           attribute :tags do |order|
             order.tag_list.to_a
@@ -59,6 +64,10 @@ module Spree
           one :shipping_address, resource: Spree.api.admin_address_serializer, if: proc { expand?('shipping_address') }
           one :gift_card, resource: Spree.api.admin_gift_card_serializer
           one :market, resource: Spree.api.admin_market_serializer
+          one :channel, resource: Spree.api.admin_channel_serializer, if: proc { expand?('channel') }
+          one :preferred_stock_location,
+              resource: Spree.api.admin_stock_location_serializer,
+              if: proc { expand?('preferred_stock_location') }
 
           many :payment_methods, resource: Spree.api.admin_payment_method_serializer, if: proc { expand?('payment_methods') }
 

@@ -3,6 +3,7 @@ export { AddressSchema, type Address } from './Address';
 export { BaseSchema, type Base } from './Base';
 export { CartSchema, type Cart } from './Cart';
 export { CategorySchema, type Category } from './Category';
+export { ChannelSchema, type Channel } from './Channel';
 export { CountrySchema, type Country } from './Country';
 export { CreditCardSchema, type CreditCard } from './CreditCard';
 export { CurrencySchema, type Currency } from './Currency';
