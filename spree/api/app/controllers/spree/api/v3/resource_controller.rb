@@ -189,7 +189,13 @@ module Spree
         # and the bare-`id` predicates (`id_in`, `id_eq`) on the resource's
         # primary key. Without the bare-id branch, `q[id_in][]=prod_x` would
         # be passed to Ransack verbatim and never match any row.
-        RANSACK_ID_PREDICATE_RE = /(?:\A|_)id(?:s)?(?:_(?:eq|not_eq|in|not_in|lt|lteq|gt|gteq))?\z/.freeze
+        #
+        # Requires a Ransack-predicate suffix (`_eq`, `_in`, ...) — bare
+        # `_id`/`_ids` keys without a suffix are scope names, not predicates
+        # (e.g. `with_option_value_ids` is a custom scope that handles its
+        # own decoding). Decoding those would double-strip prefixes and
+        # break downstream filter code.
+        RANSACK_ID_PREDICATE_RE = /(?:\A|_)id(?:s)?_(?:eq|not_eq|in|not_in|lt|lteq|gt|gteq)\z/.freeze
         def ransack_id_predicate?(key)
           RANSACK_ID_PREDICATE_RE.match?(key.to_s)
         end

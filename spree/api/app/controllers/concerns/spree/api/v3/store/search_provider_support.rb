@@ -10,7 +10,10 @@ module Spree
           # `ResourceController` — duplicated here because `FiltersController`
           # extends `Store::BaseController`, not `ResourceController`, and
           # would otherwise NoMethodError on `decode_prefixed_id_predicates`.
-          RANSACK_ID_PREDICATE_RE = /(?:\A|_)id(?:s)?(?:_(?:eq|not_eq|in|not_in|lt|lteq|gt|gteq))?\z/.freeze
+          # Requires a Ransack-predicate suffix so we don't match scope
+          # names like `with_option_value_ids` (which handle their own
+          # prefix decoding).
+          RANSACK_ID_PREDICATE_RE = /(?:\A|_)id(?:s)?_(?:eq|not_eq|in|not_in|lt|lteq|gt|gteq)\z/.freeze
 
           private
 
