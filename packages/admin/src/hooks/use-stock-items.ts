@@ -23,6 +23,11 @@ export function useStockItems(params: UseStockItemsParams = {}) {
       adminClient.stockItems.list({
         page: params.page ?? 1,
         limit: params.limit ?? 25,
+        // The stock-at-location panel renders the variant's product name +
+        // SKU per row, so expand the association into the response.
+        // Without this, only `variant_id` comes back and the row falls
+        // back to displaying the prefixed ID.
+        expand: ['variant'],
         ...(params.stock_location_id_eq && {
           stock_location_id_eq: params.stock_location_id_eq,
         }),
