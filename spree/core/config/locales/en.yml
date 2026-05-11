@@ -1889,6 +1889,9 @@ en:
     promotion_not_cloned: 'Promotion has not been cloned. Reason: %{error}'
     promotion_rule: Promotion Rule
     promotion_rule_types:
+      category:
+        description: Order includes products in specified category(ies)
+        name: Category(ies)
       country:
         description: Limit to orders with shipping address in a specific country
         name: Country
@@ -1913,9 +1916,6 @@ en:
       product:
         description: Order includes specified product(s)
         name: Product(s)
-      category:
-        description: Order includes products in specified category(ies)
-        name: Category(ies)
       user:
         description: Available only to the specified customers
         name: User
