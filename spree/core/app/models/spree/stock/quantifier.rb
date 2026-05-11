@@ -8,16 +8,55 @@ module Spree
         @stock_location = stock_location
       end
 
+      # Units a customer can purchase right now: physical pool minus
+      # already-allocated units minus active checkout reservations. Clamped
+      # at zero so callers never see a negative count.
+      #
+      # Returns +BigDecimal::INFINITY+ when the variant does not track
+      # inventory (effectively unlimited supply).
+      #
+      # @return [Integer, BigDecimal] purchasable quantity, or +INFINITY+
       def total_on_hand
         @total_on_hand ||= if variant.should_track_inventory?
-                             if association_loaded?
-                               stock_items.sum(&:count_on_hand)
-                             else
-                               stock_items.sum(:count_on_hand)
-                             end
+                             [available_stock - reserved_quantity, 0].max
                            else
                              BigDecimal::INFINITY
                            end
+      end
+
+      # Physical pool minus already-allocated units, summed across the
+      # variant's active stock items.
+      #
+      # In Spree 5.5 {Spree::StockItem#allocated_count} is a Ruby shim that
+      # always returns 0, so this equals +SUM(count_on_hand)+. In 6.0
+      # (Typed Stock Movements) +allocated_count+ becomes a real column and
+      # the SQL path subtracts it natively.
+      #
+      # @return [Integer] units available before checkout reservations
+      def available_stock
+        if association_loaded?
+          stock_items.sum(&:available_count)
+        elsif self.class.allocated_count_column?
+          stock_items.sum('count_on_hand - allocated_count')
+        else
+          stock_items.sum(:count_on_hand)
+        end
+      end
+
+      # Units currently held by active checkout reservations across the
+      # variant's stock items. Returns 0 when stock reservations are
+      # globally disabled.
+      #
+      # Short-circuits the SUM query with an EXISTS check so non-checkout
+      # product list traffic stays at one query per variant.
+      #
+      # @return [Integer]
+      def reserved_quantity
+        return @reserved_quantity if defined?(@reserved_quantity)
+        return @reserved_quantity = 0 unless Spree::Config[:stock_reservations_enabled]
+
+        active_reservations = Spree::StockReservation.active.where(stock_item_id: stock_item_ids)
+        @reserved_quantity = active_reservations.exists? ? active_reservations.sum(:quantity) : 0
       end
 
       def backorderable?
@@ -32,7 +71,22 @@ module Spree
         @stock_items ||= scope_to_location(variant.stock_items)
       end
 
+      # Memoized schema check so {#available_stock} doesn't introspect the
+      # column list on every call. Flips from false → true when 6.0 Typed
+      # Stock Movements adds the `allocated_count` column.
+      #
+      # @return [Boolean]
+      def self.allocated_count_column?
+        return @allocated_count_column if defined?(@allocated_count_column)
+
+        @allocated_count_column = Spree::StockItem.connection.column_exists?(:spree_stock_items, :allocated_count)
+      end
+
       private
+
+      def stock_item_ids
+        @stock_item_ids ||= association_loaded? ? stock_items.map(&:id) : stock_items.pluck(:id)
+      end
 
       def association_loaded?
         variant.association(:stock_items).loaded?

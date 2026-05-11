@@ -171,6 +171,9 @@ Spree::Core::Engine.add_routes do
 
         # Stock Locations
         resources :stock_locations
+        
+        # Stock Reservations
+        resources :stock_reservations, only: [:index, :show]
 
         # Stock Items (write surface — list/show/update/destroy; creation
         # happens implicitly when variants meet stock locations).

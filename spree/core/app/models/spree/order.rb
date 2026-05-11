@@ -9,6 +9,11 @@ module Spree
   class Order < Spree.base_class
     has_prefix_id :or  # Stripe: or_
 
+    # Legacy free-text `channel` column was replaced by the `channel_id` FK
+    # (see 6.0-order-routing.md). The string column stays in the DB so the
+    # 5.4-to-5.5 backfill rake can read it; AR ignores it everywhere else.
+    self.ignored_columns += ['channel']
+
     PAYMENT_STATES = %w(balance_due credit_owed failed paid void)
     SHIPMENT_STATES = %w(backorder canceled partial pending ready shipped)
     LINE_ITEM_REMOVABLE_STATES = %w(cart address delivery payment confirm resumed)
@@ -104,10 +109,10 @@ module Spree
       go_to_state :complete
     end
 
-    self.whitelisted_ransackable_associations = %w[shipments user created_by approver canceler promotions bill_address ship_address line_items store]
+    self.whitelisted_ransackable_associations = %w[shipments user created_by approver canceler promotions bill_address ship_address line_items store channel]
     self.whitelisted_ransackable_attributes = %w[
       completed_at email number state status payment_state shipment_state
-      total item_total item_count considered_risky channel
+      total item_total item_count considered_risky channel_id
     ]
     self.whitelisted_ransackable_scopes = %w[complete incomplete refunded partially_refunded search multi_search]
 
@@ -159,6 +164,8 @@ module Spree
 
     belongs_to :store, class_name: 'Spree::Store'
     belongs_to :market, class_name: 'Spree::Market', optional: true
+    belongs_to :channel, class_name: 'Spree::Channel', optional: true
+    belongs_to :preferred_stock_location, class_name: 'Spree::StockLocation', optional: true
 
     with_options dependent: :destroy do
       has_many :state_changes, as: :stateful, class_name: 'Spree::StateChange'
@@ -174,6 +181,7 @@ module Spree
     has_many :customer_returns, class_name: 'Spree::CustomerReturn', through: :return_authorizations
     has_many :line_item_adjustments, through: :line_items, source: :adjustments
     has_many :inventory_units, inverse_of: :order, class_name: 'Spree::InventoryUnit'
+    has_many :stock_reservations, class_name: 'Spree::StockReservation', inverse_of: :order, dependent: :destroy
     has_many :return_items, through: :inventory_units, class_name: 'Spree::ReturnItem'
     has_many :variants, through: :line_items
     has_many :products, through: :variants
@@ -215,6 +223,7 @@ module Spree
     # Needs to happen before save_permalink is called
     before_validation :ensure_store_presence
     before_validation :ensure_market_presence
+    before_validation :ensure_channel_presence
     before_validation :ensure_currency_presence
     before_validation :ensure_locale_presence
     before_validation :resolve_market_from_currency, if: -> { persisted? && currency_changed? && !skip_market_resolution }
@@ -369,6 +378,13 @@ module Spree
       completed_at.present?
     end
 
+    # True when the order is mid-checkout: past the `cart` state but not yet
+    # completed or canceled. Used by stock reservation hooks and any flow
+    # that should only run during the active checkout phase.
+    def in_checkout?
+      !cart? && !complete? && !canceled?
+    end
+
     def draft?
       status == 'draft'
     end
@@ -486,6 +502,12 @@ module Spree
 
     def ensure_market_presence
       self.market ||= Spree::Current.market || store&.default_market
+    end
+
+    def ensure_channel_presence
+      return if channel_id.present?
+
+      self.channel = store&.default_channel
     end
 
     def allow_cancel?
@@ -749,7 +771,31 @@ module Spree
       # and are not returned or shipped should be deleted
       inventory_units.on_hand_or_backordered.delete_all
 
-      self.shipments = Spree::Stock::Coordinator.new(self).shipments
+      self.shipments = order_routing_strategy.for_allocation.map do |package|
+        package.to_shipment.tap { |s| s.address_id = ship_address_id }
+      end
+    end
+
+    # @return [Spree::OrderRouting::Strategy::Base]
+    def order_routing_strategy
+      klass_name = channel&.preferred_order_routing_strategy.presence ||
+                   store.preferred_order_routing_strategy
+      klass = klass_name&.safe_constantize
+
+      unless klass && klass <= Spree::OrderRouting::Strategy::Base
+        raise ArgumentError, "Invalid order routing strategy: #{klass_name.inspect}"
+      end
+
+      klass.new(order: self)
+    end
+
+    # Cascade for the `preferred_location` rule kind. Channel and B2B sources
+    # are layered in by their respective plans.
+    #
+    # @return [Integer, nil]
+    def inferred_preferred_stock_location_id
+      preferred_stock_location_id.presence ||
+        created_by&.try(:preferred_stock_location_id)
     end
 
     # Returns the total weight of the inventory units in the order

@@ -643,42 +643,12 @@ describe Spree::Product, type: :model do
     end
   end
 
-  describe '#brand' do
+  describe '#brand_name' do
     let(:taxonomy) { store.taxonomies.find_by(name: Spree.t(:taxonomy_brands_name)) || create(:taxonomy, name: Spree.t(:taxonomy_brands_name), store: store) }
     let(:product) { create(:product, taxons: [taxonomy.taxons.first], stores: [store]) }
 
-    context 'when brand association is not defined' do
-      it 'falls back to brand_taxon' do
-        expect(product.brand).to eql(taxonomy.taxons.first)
-      end
-
-      it 'returns brand name via brand_name method' do
-        expect(product.brand_name).to eql(taxonomy.taxons.first.name)
-      end
-    end
-
-    context 'when brand association is defined' do
-      let(:brand_class) { Class.new(Spree::Base) { self.table_name = 'spree_taxons' } }
-      let(:brand) { brand_class.first }
-
-      before do
-        stub_const('Spree::Brand', brand_class)
-        allow(Spree::Product).to receive(:reflect_on_association).with(:brand).and_return(double(name: :brand))
-        allow(product).to receive(:super).and_return(brand)
-        # Mock the super call by defining the association behavior
-        product.define_singleton_method(:read_attribute) do |attr|
-          attr == :brand_id ? brand.id : super(attr)
-        end
-        product.define_singleton_method(:association) do |name|
-          name == :brand ? double(reader: brand) : super(name)
-        end
-      end
-
-      it 'uses the brand association' do
-        allow(product).to receive(:brand).and_call_original
-        # Since we can't easily mock super, we verify the reflection check
-        expect(Spree::Product.reflect_on_association(:brand)).to be_truthy
-      end
+    it 'returns the brand taxon name' do
+      expect(product.brand_name).to eql(taxonomy.taxons.first.name)
     end
   end
 
@@ -823,6 +793,56 @@ describe Spree::Product, type: :model do
       it 'returns nil' do
         expect(product.primary_media).to be_nil
       end
+    end
+  end
+
+  describe '#media' do
+    let(:product) { create(:product, stores: [store]) }
+
+    it 'returns product-level assets' do
+      image = create(:image, viewable: product)
+      expect(product.media).to include(image)
+    end
+
+    it 'does not include variant images' do
+      variant_image = create(:image, viewable: product.master)
+      expect(product.media).not_to include(variant_image)
+    end
+
+    it 'is ordered by position' do
+      img2 = create(:image, viewable: product, position: 2)
+      img1 = create(:image, viewable: product, position: 1)
+      expect(product.media.to_a).to eq([img1, img2])
+    end
+  end
+
+  describe '#gallery_media' do
+    let(:product) { create(:product, stores: [store]) }
+
+    it 'returns product media when present' do
+      product_image = create(:image, viewable: product)
+      create(:image, viewable: product.master)
+      expect(product.reload.gallery_media).to include(product_image)
+    end
+
+    it 'falls back to variant_images when no product media' do
+      variant_image = create(:image, viewable: product.master)
+      expect(product.reload.gallery_media).to include(variant_image)
+    end
+  end
+
+  describe '#update_thumbnail!' do
+    let(:product) { create(:product, stores: [store]) }
+
+    it 'uses product media first' do
+      product_image = create(:image, viewable: product)
+      expect(product.reload.primary_media_id).to eq(product_image.id)
+    end
+
+    it 'falls back to variant images when no product media' do
+      variant_image = create(:image, viewable: product.master)
+      product.update_thumbnail!
+      expect(product.reload.primary_media_id).to eq(variant_image.id)
     end
   end
 

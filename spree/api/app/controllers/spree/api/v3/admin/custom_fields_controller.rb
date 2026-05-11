@@ -78,14 +78,14 @@ module Spree
 
           ParentLookup = Struct.new(:klass, :value, :segment)
 
-          # `Spree.user_class.model_name.element` is `'user'`, but the route
-          # segment is `customer_id` — alias here so both resolve to user_class.
+          # Stores class names (not class objects) so the map survives dev-mode
+          # code reloads — `enabled_resources` is captured at boot and its
+          # class references go stale. Aliases `'customer'` because the route
+          # uses `customer_id` while user_class.model_name.element is `'user'`.
           def parent_route_map
             @parent_route_map ||= Spree.metafields.enabled_resources.each_with_object({}) do |klass, m|
-              m[klass.model_name.element.to_s] = klass
-            end.tap do |map|
-              map['customer'] = Spree.user_class if Spree.metafields.enabled_resources.include?(Spree.user_class)
-            end
+              m[klass.model_name.element.to_s] = klass.name
+            end.merge('customer' => Spree.user_class.name)
           end
 
           # Returns the first segment whose `<segment>_id` is present in params,
@@ -97,8 +97,8 @@ module Spree
             match = parent_route_map.find { |segment, _| params[:"#{segment}_id"].present? }
             @parent_lookup =
               if match
-                segment, klass = match
-                ParentLookup.new(klass, params[:"#{segment}_id"], segment)
+                segment, klass_name = match
+                ParentLookup.new(klass_name.constantize, params[:"#{segment}_id"], segment)
               end
           end
         end

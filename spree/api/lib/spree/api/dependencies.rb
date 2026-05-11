@@ -113,6 +113,7 @@ module Spree
         address_serializer: 'Spree::Api::V3::AddressSerializer',
         customer_serializer: 'Spree::Api::V3::CustomerSerializer',
         country_serializer: 'Spree::Api::V3::CountrySerializer',
+        channel_serializer: 'Spree::Api::V3::ChannelSerializer',
         market_serializer: 'Spree::Api::V3::MarketSerializer',
         state_serializer: 'Spree::Api::V3::StateSerializer',
         wishlist_serializer: 'Spree::Api::V3::WishlistSerializer',
@@ -153,6 +154,7 @@ module Spree
         return_item_serializer: 'Spree::Api::V3::ReturnItemSerializer',
         stock_item_serializer: 'Spree::Api::V3::StockItemSerializer',
         stock_movement_serializer: 'Spree::Api::V3::StockMovementSerializer',
+        stock_reservation_serializer: 'Spree::Api::V3::StockReservationSerializer',
         stock_transfer_serializer: 'Spree::Api::V3::StockTransferSerializer',
 
         # v3 admin serializers (API v3 Admin)
@@ -186,10 +188,12 @@ module Spree
         admin_reimbursement_serializer: 'Spree::Api::V3::Admin::ReimbursementSerializer',
         admin_admin_user_serializer: 'Spree::Api::V3::Admin::AdminUserSerializer',
         admin_address_serializer: 'Spree::Api::V3::Admin::AddressSerializer',
+        admin_channel_serializer: 'Spree::Api::V3::Admin::ChannelSerializer',
         admin_market_serializer: 'Spree::Api::V3::Admin::MarketSerializer',
         admin_shipping_method_serializer: 'Spree::Api::V3::Admin::DeliveryMethodSerializer',
         admin_delivery_method_serializer: 'Spree::Api::V3::Admin::DeliveryMethodSerializer',
         admin_stock_location_serializer: 'Spree::Api::V3::Admin::StockLocationSerializer',
+        admin_stock_reservation_serializer: 'Spree::Api::V3::Admin::StockReservationSerializer',
         admin_shipping_rate_serializer: 'Spree::Api::V3::Admin::DeliveryRateSerializer',
         admin_delivery_rate_serializer: 'Spree::Api::V3::Admin::DeliveryRateSerializer',
         admin_payment_method_serializer: 'Spree::Api::V3::Admin::PaymentMethodSerializer',

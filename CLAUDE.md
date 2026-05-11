@@ -31,6 +31,7 @@ Current plans:
 - `6.0-rich-text-descriptions.md` — Drop ActionText storage, store HTML in text columns, sanitize on write, serve `description` + `description_html` in API
 - `5.4-store-api-naming-standardization.md` — Standardize API naming against industry (address fields, discounts, customer_note, label, brand/last4, etc.)
 - `5.4-6.0-eu-legal-compliance.md` — GDPR (data export/anonymization, consent timestamps), Omnibus (PriceHistory, lowest-in-30-days), Consumer Rights (withdrawal period). Core primitives + enterprise hooks.
+- `6.0-order-routing.md` — Two-tier extension: pluggable `Spree::OrderRouting::Strategy::Base` (whole algorithms) + STI subclasses of `Spree::OrderRoutingRule` (signals consumed by `Rules` strategy). Adds `Spree::Order.preferred_stock_location_id`, `Spree::Order.channel_id` (FK replacing the deprecated string column), `Spree::Channel`, `Spree::OrderRoutingRule`. Phase 1 (5.5) ships channel-scoped rules + minimal `Spree::Channel`; Phase 2 (6.0) layers ProductListing/Catalog/Company on top via `6.0-channels-catalogs-b2b.md`.
 - `5.5-6.0-order-cancellation-and-approval.md` — First-class `OrderCancellation` + `OrderApproval` models, capture reasons/restock/refund decisions, polymorphic actor; 6.0 drops denormalized columns
 - `5.5-admin-api-key-scopes.md` — Shopify-style `read_*`/`write_*` scopes on `Spree::ApiKey` for Admin API authorization (apps), independent of CanCanCan (which stays for JWT users)
 - `5.4-disjunctive-option-faceting.md` — Per-option-type filter params with disjunctive facet counts (OR within option type, AND across)
@@ -103,6 +104,7 @@ Per-request context available in models, controllers, jobs, and services:
 - Never cast IDs to integer — always treat as strings (UUID support)
 - Uniqueness validations: always use `scope: spree_base_uniqueness_scope`, should be also enforced by database index
 - If needed use paranoia gem for soft delete support (via `acts_as_paranoid`)
+- For configuration / options always use [Model Preferences](docs/developer/customization/model-preferences.mdx)
 
 ```ruby
 class Spree::Product < Spree.base_class

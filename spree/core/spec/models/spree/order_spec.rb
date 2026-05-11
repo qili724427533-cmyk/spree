@@ -1554,11 +1554,86 @@ describe Spree::Order, type: :model do
       end
     end
 
-    it 'assigns the coordinator returned shipments to its shipments' do
+    it 'assigns the routing strategy returned packages, mapped to shipments' do
+      package = instance_double(Spree::Stock::Package)
       shipment = build(:shipment)
-      allow_any_instance_of(Spree::Stock::Coordinator).to receive(:shipments).and_return([shipment])
+      allow(package).to receive(:to_shipment).and_return(shipment)
+
+      strategy = instance_double(Spree::OrderRouting::Strategy::Rules)
+      allow(strategy).to receive(:for_allocation).and_return([package])
+      allow(subject).to receive(:order_routing_strategy).and_return(strategy)
+
       subject.create_proposed_shipments
       expect(subject.shipments).to eq [shipment]
+    end
+  end
+
+  describe '#order_routing_strategy' do
+    it 'instantiates the strategy class configured on the store' do
+      strategy = order.order_routing_strategy
+      expect(strategy).to be_a(Spree::OrderRouting::Strategy::Rules)
+      expect(strategy.order).to eq(order)
+    end
+
+    it 'honors a custom store-level preference' do
+      stub_const('CustomStrategy', Class.new(Spree::OrderRouting::Strategy::Base))
+      # Use a transient store so the preference change rolls back with the
+      # transaction; mutating @default_store would leak across examples.
+      isolated_store = create(:store)
+      isolated_store.preferred_order_routing_strategy = 'CustomStrategy'
+      isolated_order = create(:order, store: isolated_store)
+
+      expect(isolated_order.order_routing_strategy).to be_a(CustomStrategy)
+    end
+
+    it 'lets a channel preference override the store preference' do
+      stub_const('ChannelStrategy', Class.new(Spree::OrderRouting::Strategy::Base))
+      isolated_store = create(:store)
+      channel = isolated_store.channels.first
+      channel.preferred_order_routing_strategy = 'ChannelStrategy'
+      channel.save!
+      isolated_order = create(:order, store: isolated_store, channel: channel)
+
+      expect(isolated_order.order_routing_strategy).to be_a(ChannelStrategy)
+    end
+
+    it 'falls back to the store preference when channel preference is blank' do
+      isolated_store = create(:store)
+      channel = isolated_store.channels.first
+      isolated_order = create(:order, store: isolated_store, channel: channel)
+
+      expect(channel.preferred_order_routing_strategy).to be_blank
+      expect(isolated_order.order_routing_strategy).to be_a(Spree::OrderRouting::Strategy::Rules)
+    end
+  end
+
+  describe '#ensure_channel_presence' do
+    let(:store) { create(:store) }
+
+    it 'auto-assigns the store default channel on new orders' do
+      o = build(:order, store: store, channel: nil)
+      o.valid?
+      expect(o.channel).to eq(store.default_channel)
+    end
+
+    it 'preserves an explicitly set channel' do
+      other = store.channels.create!(name: 'POS', code: 'pos')
+      o = build(:order, store: store, channel: other)
+      o.valid?
+      expect(o.channel).to eq(other)
+    end
+  end
+
+  describe '#inferred_preferred_stock_location_id' do
+    let(:preferred) { create(:stock_location) }
+
+    it 'returns the explicit value when set' do
+      order.preferred_stock_location_id = preferred.id
+      expect(order.inferred_preferred_stock_location_id).to eq(preferred.id)
+    end
+
+    it 'returns nil when nothing in the cascade is set' do
+      expect(order.inferred_preferred_stock_location_id).to be_nil
     end
   end
 

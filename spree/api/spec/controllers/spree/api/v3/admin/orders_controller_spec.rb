@@ -276,6 +276,94 @@ RSpec.describe Spree::Api::V3::Admin::OrdersController, type: :controller do
         expect(created.completed_at).to be_nil
       end
     end
+
+    context 'with preferred_stock_location_id (routes to that location)' do
+      let(:country) { @default_country }
+      let(:state)   { country.states.first || create(:state, country: country) }
+      let!(:zone)   { create(:zone) }
+      let!(:zone_member) { create(:zone_member, zone: zone, zoneable: country) }
+      let!(:shipping_method) do
+        create(:shipping_method, zones: [zone]).tap do |sm|
+          sm.calculator.preferred_amount = 5
+          sm.calculator.save
+        end
+      end
+
+      let!(:default_location)   { create(:stock_location, name: 'NYC default', default: true,  country: country, state: state) }
+      let!(:preferred_location) { create(:stock_location, name: 'LA preferred', default: false, country: country, state: state) }
+
+      let(:variant) { create(:variant) }
+
+      before do
+        default_location.stock_item_or_create(variant).update!(count_on_hand: 10)
+        preferred_location.stock_item_or_create(variant).update!(count_on_hand: 10)
+      end
+
+      let(:create_params) do
+        {
+          email: 'test@example.com',
+          preferred_stock_location_id: preferred_location.prefixed_id,
+          items: [{ variant_id: variant.prefixed_id, quantity: 2 }],
+          shipping_address: {
+            firstname: 'Jane', lastname: 'Doe',
+            address1: '350 Fifth Avenue', city: 'New York',
+            zipcode: '10118', phone: '555-555-0199',
+            country_id: country.id, state_id: state.id
+          }
+        }
+      end
+
+      it 'persists the preferred_stock_location association' do
+        subject
+
+        expect(response).to have_http_status(:created)
+        created = Spree::Order.find_by_prefix_id(json_response['id'])
+        expect(created.preferred_stock_location).to eq(preferred_location)
+      end
+
+      it 'exposes preferred_stock_location_id in the JSON response' do
+        subject
+        expect(json_response['preferred_stock_location_id']).to eq(preferred_location.prefixed_id)
+      end
+
+      it 'routes the resulting fulfillment to the preferred location, not the default' do
+        subject
+
+        created = Spree::Order.find_by_prefix_id(json_response['id'])
+        expect(created.shipments).not_to be_empty
+        expect(created.shipments.map(&:stock_location)).to all(eq(preferred_location))
+        expect(created.shipments.map(&:stock_location)).not_to include(default_location)
+      end
+
+      context 'when the preferred location does not stock the variant' do
+        before do
+          preferred_location.stock_items.where(variant_id: variant.id).destroy_all
+        end
+
+        it 'falls back to the default location instead of erroring' do
+          subject
+
+          expect(response).to have_http_status(:created)
+          created = Spree::Order.find_by_prefix_id(json_response['id'])
+          expect(created.preferred_stock_location).to eq(preferred_location)
+          expect(created.shipments.map(&:stock_location)).to all(eq(default_location))
+        end
+      end
+
+      context 'with an unknown preferred_stock_location_id' do
+        let(:create_params) do
+          {
+            email: 'test@example.com',
+            preferred_stock_location_id: 'sloc_doesnotexist'
+          }
+        end
+
+        it 'returns a not-found error rather than silently dropping the preference' do
+          expect { subject }.not_to change(Spree::Order, :count)
+          expect(response).to have_http_status(:not_found)
+        end
+      end
+    end
   end
 
   describe 'PATCH #update' do

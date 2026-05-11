@@ -3,6 +3,7 @@ export { AddressSchema, type Address } from './Address';
 export { BaseSchema, type Base } from './Base';
 export { CartSchema, type Cart } from './Cart';
 export { CategorySchema, type Category } from './Category';
+export { ChannelSchema, type Channel } from './Channel';
 export { CountrySchema, type Country } from './Country';
 export { CreditCardSchema, type CreditCard } from './CreditCard';
 export { CurrencySchema, type Currency } from './Currency';
@@ -40,6 +41,7 @@ export { ReturnAuthorizationSchema, type ReturnAuthorization } from './ReturnAut
 export { ReturnItemSchema, type ReturnItem } from './ReturnItem';
 export { StateSchema, type State } from './State';
 export { StockLocationSchema, type StockLocation } from './StockLocation';
+export { StockReservationSchema, type StockReservation } from './StockReservation';
 export { StoreCreditSchema, type StoreCredit } from './StoreCredit';
 export { VariantSchema, type Variant } from './Variant';
 export { WishlistSchema, type Wishlist } from './Wishlist';

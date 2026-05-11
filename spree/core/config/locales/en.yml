@@ -785,6 +785,8 @@ en:
     are_you_sure: Are you sure?
     are_you_sure_delete: Are you sure you want to delete this record?
     assets: Media
+    assigned_variants: Assigned variants
+    assigned_variants_help: Pick the variants this image represents. Leave blank to apply to all variants.
     associated_adjustment_closed: The associated adjustment is closed, and will not be recalculated. Do you want to open it?
     at_symbol: "@"
     attachments: Attachments
@@ -1130,6 +1132,7 @@ en:
       messages:
         blank: can't be blank
         cannot_remove_icon: Cannot remove image
+        channel_store_mismatch: must belong to the same store
         could_not_create_taxon: Could not create taxon
         must_be_origin_only: must be an origin (scheme and host) without path, query, or fragment
         no_shipping_methods_available: No shipping methods available for selected location, please change your address and try again.
@@ -2487,6 +2490,7 @@ en:
     view: View
     view_all: View all
     view_full_details: View full details
+    view_full_size: View full size
     view_store: View store
     view_your_store: View your store
     visibility: Visibility

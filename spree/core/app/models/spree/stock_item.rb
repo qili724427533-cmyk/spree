@@ -15,6 +15,7 @@ module Spree
       belongs_to :variant, -> { with_deleted }, class_name: 'Spree::Variant'
     end
     has_many :stock_movements, inverse_of: :stock_item
+    has_many :stock_reservations, class_name: 'Spree::StockReservation', inverse_of: :stock_item, dependent: :destroy
 
     validates :stock_location, :variant, presence: true
     validates :variant_id, uniqueness: { scope: :stock_location_id }, unless: :deleted_at
@@ -76,6 +77,28 @@ module Spree
     # Tells whether it's available to be included in a shipment
     def available?
       in_stock? || backorderable?
+    end
+
+    # Units already allocated to pending shipments at this stock item.
+    #
+    # Always returns 0 in Spree 5.5. The 6.0 Typed Stock Movements plan
+    # (see docs/plans/6.0-typed-stock-movements.md) adds an indexed
+    # `allocated_count` column updated by typed movements (`allocated`,
+    # `released`, `shipped`); the Rails column accessor then takes
+    # precedence over this method automatically.
+    #
+    # @return [Integer]
+    def allocated_count
+      0
+    end
+
+    # Physical stock minus allocated units at this stock item. Distinct from
+    # {Spree::Stock::Quantifier#available_stock}, which sums this across all
+    # stock items belonging to a variant.
+    #
+    # @return [Integer]
+    def available_count
+      count_on_hand - allocated_count
     end
 
     def reduce_count_on_hand_to_zero

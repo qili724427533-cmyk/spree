@@ -5,7 +5,8 @@ module Spree
       # Post-purchase order data (completed orders)
       class OrderSerializer < BaseSerializer
         typelize number: :string, email: :string,
-                 customer_note: [:string, nullable: true], market_id: [:string, nullable: true],
+                 customer_note: [:string, nullable: true],
+                 market_id: [:string, nullable: true], channel_id: [:string, nullable: true],
                  currency: :string, locale: [:string, nullable: true], total_quantity: :number,
                  fulfillment_status: [:string, nullable: true], payment_status: [:string, nullable: true],
                  item_total: :string, display_item_total: :string,
@@ -26,6 +27,10 @@ module Spree
 
         attribute :market_id do |order|
           order.market&.prefixed_id
+        end
+
+        attribute :channel_id do |order|
+          order.channel&.prefixed_id
         end
 
         attributes :number, :email, :customer_note,

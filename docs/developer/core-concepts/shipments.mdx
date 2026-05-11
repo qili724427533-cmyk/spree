@@ -3,6 +3,8 @@ title: Shipments
 description: Shipping methods, rates, split shipments, and fulfillment
 ---
 
+import { Since } from '/snippets/since.mdx';
+
 ## Overview
 
 A shipment represents a package being sent to a customer from a [Stock Location](/developer/core-concepts/inventory#stock-locations). Each order can have one or more shipments — Spree automatically splits orders into multiple shipments when items need to ship from different locations or require different shipping methods.
@@ -49,15 +51,19 @@ erDiagram
 
 ## Shipment Attributes
 
+The Store API/SDK exposes shipments as `fulfillments` with these attributes:
+
 | Attribute | Description | Example |
 |-----------|-------------|---------|
-| `number` | Unique shipment identifier | `H12345678901` |
+| `number` | Unique fulfillment identifier | `H12345678901` |
 | `tracking` | Carrier tracking number | `1Z999AA10123456784` |
-| `state` | Current shipment state | `shipped` |
-| `cost` | Shipping cost | `9.99` |
-| `shipped_at` | When the shipment was shipped | `2025-07-21T14:36:00Z` |
+| `status` | Current fulfillment status | `shipped` |
+| `fulfillment_type` | `shipping` or `digital` | `shipping` |
+| `cost` | Delivery cost | `9.99` |
+| `fulfilled_at` | When the fulfillment was shipped | `2025-07-21T14:36:00Z` |
 | `stock_location` | Where items ship from | `Warehouse NYC` |
-| `selected_shipping_rate` | The rate chosen by the customer | `{ cost: 9.99, name: "UPS Ground" }` |
+| `delivery_method` | The selected delivery method | `{ id: "dm_xxx", name: "UPS Ground" }` |
+| `delivery_rates` | Available rates for the customer to pick from | `[{ id: "rate_xxx", cost: "9.99", selected: true, ... }]` |
 
 ## Shipment States
 
@@ -83,35 +89,36 @@ During checkout, after the customer provides a shipping address, Spree calculate
 <CodeGroup>
 
 ```typescript SDK
-// Get shipments with available shipping rates
+// Get fulfillments with available delivery rates
+// (the Store API/SDK exposes shipments as `fulfillments`)
 const order = await client.orders.get(orderId, {
-  expand: ['shipments'],
+  expand: ['fulfillments'],
 })
 
-// Each shipment has available shipping rates
-order.shipments?.forEach(shipment => {
-  console.log(shipment.number)           // "H12345678901"
-  console.log(shipment.shipping_rates)   // [{ id: "sr_xxx", name: "UPS Ground", cost: "9.99", selected: true }, ...]
+// Each fulfillment has available delivery rates
+order.fulfillments?.forEach(fulfillment => {
+  console.log(fulfillment.number)         // "H12345678901"
+  console.log(fulfillment.delivery_rates) // [{ id: "rate_xxx", name: "UPS Ground", cost: "9.99", selected: true }, ...]
 })
 
-// Select a shipping rate
-await client.carts.shipments.update(cartId, shipment.id, {
-  selected_shipping_rate_id: 'sr_xxx',
+// Select a delivery rate
+await client.carts.fulfillments.update(cartId, fulfillment.id, {
+  selected_delivery_rate_id: 'rate_xxx',
 })
 ```
 
 ```bash cURL
-# Get shipments
-curl 'https://api.mystore.com/api/v3/store/carts/cart_xxx?expand=shipments' \
+# Get fulfillments
+curl 'https://api.mystore.com/api/v3/store/carts/cart_xxx?expand=fulfillments' \
   -H 'Authorization: Bearer pk_xxx' \
   -H 'X-Spree-Token: abc123'
 
-# Select a shipping rate
-curl -X PATCH 'https://api.mystore.com/api/v3/store/carts/cart_xxx/shipments/shp_xxx' \
+# Select a delivery rate
+curl -X PATCH 'https://api.mystore.com/api/v3/store/carts/cart_xxx/fulfillments/ful_xxx' \
   -H 'Authorization: Bearer pk_xxx' \
   -H 'X-Spree-Token: abc123' \
   -H 'Content-Type: application/json' \
-  -d '{ "selected_shipping_rate_id": "sr_xxx" }'
+  -d '{ "selected_delivery_rate_id": "rate_xxx" }'
 ```
 
 </CodeGroup>
@@ -151,33 +158,115 @@ Each shipping method uses a [Calculator](/developer/core-concepts/calculators) t
 
 You can create custom calculators for more complex pricing. See the [Calculators guide](/developer/core-concepts/calculators).
 
+## Order Routing <Since version="5.5" />
+
+When an order moves from cart to checkout, Spree decides which [Stock Location](/developer/core-concepts/inventory#stock-locations) fulfills it. **Order Routing** is the system that makes that decision — driven by configurable rules so merchants can express preferences like "fulfill from the customer's preferred warehouse first," "minimize the number of split shipments," or "always pick the closest location."
+
+```mermaid
+flowchart LR
+    Order[Order entering checkout] --> Strategy
+    Strategy[Routing strategy] --> Rules[(Rules,<br/>per channel)]
+    Strategy --> Locations[(Eligible<br/>stock locations)]
+    Rules --> Reducer
+    Locations --> Reducer
+    Reducer[Reducer:<br/>full ranking,<br/>best-first] --> Ordered[Locations<br/>in rank order]
+    Ordered --> Shipments[Shipments created<br/>top location first]
+```
+
+### How the decision is made
+
+Each Channel (the distribution surface — online storefront, POS, wholesale portal) has an ordered list of **routing rules**. When the customer enters checkout, Spree walks the rules from highest priority to lowest and asks each rule to rank the candidate locations. The result is a full best-to-worst ordering of every eligible location. The top-ranked location packs as much of the cart as it can; anything it can't cover spills over to the next-ranked location, and so on.
+
+The default rules every channel ships with:
+
+| Order | Rule | What it does |
+|---|---|---|
+| 1 | **Preferred Location** | If the order has a preferred location set (e.g. by an admin staff member), that location ranks first. Otherwise abstains. |
+| 2 | **Minimize Splits** | Prefers locations that can fulfill the most line items single-handedly. The location that covers the most cart on its own ranks higher. |
+| 3 | **Default Location** | Tie-breaker: ranks the store default first, then other active locations. Always ranks every candidate so there's always a complete order. |
+
+Reorder them, deactivate them, or add new rules without touching code — they're just rows in `spree_order_routing_rules`.
+
+### Channels
+
+Every order belongs to a Channel. Routing rules are scoped to the channel, so the wholesale channel can have completely different fulfillment logic from the online storefront. New channels seed their own three default rules automatically.
+
+A channel can also override the routing **strategy** entirely — useful when one channel needs an algorithmic shape that's different from rules-walking, e.g. a POS channel that always picks the brick-and-mortar location, or a wholesale channel that delegates routing to an external warehouse management system.
+
+### When it fires
+
+Routing fires once, when the order transitions from `cart` to `address` (the start of checkout). It produces one or more `Shipment`s, each tied to a chosen stock location. The decision is sticky — once the shipments are created, their locations stay fixed unless the merchant edits them in the admin or the cart is cleared and re-routed.
+
+Routing happens **after** stock reservations: by the time routing runs, the cart has already reserved the units it needs. Reservations and routing make their decisions at different layers — reservations protect the variant's total inventory across all locations, routing picks which location ships. They coexist correctly today, with a small inefficiency around location-pinning that's planned to be tightened in 6.0.
+
+### Extending routing
+
+For business-specific logic — proximity to the shipping address, customer-tier-aware fulfillment, refrigerated SKUs, day-of-week dispatch — you write a custom **rule** that plugs into the existing pipeline. For replacing the algorithm entirely (OMS delegation, ML-based routing, multi-order optimization solvers), you write a custom **strategy**.
+
+See the [Build Custom Order Routing](/developer/how-to/custom-order-routing) guide for both.
+
 ## Split Shipments
 
-When items in an order ship from different stock locations or have different shipping categories, Spree automatically splits the order into multiple shipments.
+An order's allocation can split along two independent axes:
+
+| Axis | Decided by | Question it answers |
+|---|---|---|
+| **Across stock locations** | [Order Routing](#order-routing) | _Which_ locations fulfill this order? |
+| **Within a stock location** | [Stock Splitters](#stock-splitters) | _How_ do we break each location's allocation into separate packages? |
+
+The two layers compose cleanly — routing picks and ranks the locations, then each chosen location is independently broken down by the splitter chain. The Prioritizer then walks all the resulting packages in rank order and decides which package fulfills each inventory unit.
 
 ```mermaid
 flowchart TB
-    A[Order with 3 items] --> B{Stock check}
-    B --> C["Item A & B: NYC Warehouse"]
-    B --> D["Item C: LA Warehouse"]
-    C --> E["Shipment 1: UPS Ground"]
-    D --> F["Shipment 2: FedEx 2Day"]
+    A[Order with 3 items] --> R[Routing strategy]
+    R --> NYC[NYC Warehouse<br/>covers 2 items]
+    R --> LA[LA Warehouse<br/>covers 1 item]
+    NYC --> P1[Packer + splitters]
+    LA --> P2[Packer + splitters]
+    P1 --> S1["Shipment 1: Light items<br/>UPS Ground from NYC"]
+    P1 --> S2["Shipment 2: Heavy items<br/>FedEx Freight from NYC"]
+    P2 --> S3["Shipment 3: Backup item<br/>UPS Ground from LA"]
 ```
 
 ### How Splitting Works
 
-1. When an order reaches the delivery step, Spree evaluates where each item is in stock
-2. Items are grouped by stock location and shipping category
-3. Each group becomes a separate shipment with its own shipping rates
-4. The customer selects a shipping rate for each shipment independently
+1. **Order Routing** produces a ranked list of stock locations (best first).
+2. **Per-location packing**: each location's units pass through `Spree::Stock::Packer` plus the configured splitter chain (`Spree.stock_splitters`), producing one or more packages per location — broken out by shipping category, on-hand vs backorder, digital vs physical, and so on.
+3. **Prioritizer**: walks all resulting packages in rank order and assigns each inventory unit to the first package that has it on hand. Units the top-ranked location can't cover spill into lower-ranked location packages; unfilled units are flagged backordered.
+4. **Shipment creation**: each remaining package becomes a `Shipment`. The customer selects a shipping rate for each shipment independently.
 
-### Weight Splitting
+## Stock Splitters
 
-By default, Spree also splits shipments when a package exceeds a weight threshold (default: 150 units). This prevents individual packages from being too heavy.
+Splitters are the per-location half of the split-shipment story. Each splitter takes the packages produced so far for one location and decides whether to break them further along its own axis. Splitters are chained — every splitter's output feeds into the next.
 
-<Info>
-Split shipment behavior is customizable. See the [Customization Quickstart](/developer/customization/quickstart) for details on creating custom splitting rules.
-</Info>
+Splitters never see more than one location's allocation at a time, so they cannot overlap with routing's location decision. Routing answers "which locations?"; splitters answer "how do we slice each location's packages?"
+
+### Built-in Splitters
+
+| Splitter | Default? | What it does |
+|---|---|---|
+| `Spree::Stock::Splitter::ShippingCategory` | Yes | Groups items in each package by their product's [Shipping Category](#shipping-categories), so each package has only one category. Ensures shipping methods scoped to specific categories receive the right items. |
+| `Spree::Stock::Splitter::Backordered` | Yes | Splits each package into an on-hand part and a backordered part. The two halves can ship at different times with different ETAs. |
+| `Spree::Stock::Splitter::Digital` | Yes | Separates digital items from physical items so digital deliveries don't get bundled with a physical package. |
+| `Spree::Stock::Splitter::Weight` | Opt-in | Caps each package at a weight threshold (default `150`). Splits heavy packages until each is under the limit. Used by carriers with per-package weight limits. |
+
+The default chain is set in `Spree::Core::Engine` and can be overridden:
+
+```ruby
+# config/initializers/spree.rb
+Rails.application.config.spree.stock_splitters = [
+  Spree::Stock::Splitter::ShippingCategory,
+  Spree::Stock::Splitter::Backordered,
+  Spree::Stock::Splitter::Digital,
+  Spree::Stock::Splitter::Weight  # add the opt-in weight cap
+]
+```
+
+The order matters — each splitter's output is the next one's input.
+
+### Extending Splitters
+
+To add custom splitting logic — refrigerated SKUs, gift wrap separation, bulky-vs-small bin separation, anything that needs to fan one location's allocation into multiple shipments — write a new subclass of `Spree::Stock::Splitter::Base`. See the [Build Custom Stock Splitter](/developer/how-to/custom-stock-splitter) guide.
 
 ## Examples
 
@@ -211,4 +300,5 @@ A store shipping from 2 locations (New York, Los Angeles) with 3 carriers and 3 
 - [Inventory](/developer/core-concepts/inventory) — Stock locations and inventory management
 - [Calculators](/developer/core-concepts/calculators) — Shipping rate calculators
 - [Addresses](/developer/core-concepts/addresses) — Shipping address and zones
+- [Build Custom Order Routing](/developer/how-to/custom-order-routing) — Custom rules and strategies for choosing the fulfillment location
 - [Events](/developer/core-concepts/events) — Subscribe to shipment events (e.g., `shipment.shipped`)

@@ -309,6 +309,16 @@
             "description": "Step-by-step guides for common tasks",
             "groups": [
               {
+                "group": "Order Routing",
+                "icon": "route",
+                "pages": ["developer/how-to/custom-order-routing"]
+              },
+              {
+                "group": "Stock Splitters",
+                "icon": "boxes-stacked",
+                "pages": ["developer/how-to/custom-stock-splitter"]
+              },
+              {
                 "group": "Payments",
                 "icon": "credit-card",
                 "pages": ["developer/how-to/custom-payment-method"]
@@ -358,6 +368,7 @@
                   {
                     "group": "Upgrade Guides",
                     "pages": [
+                      "developer/upgrades/5.4-to-5.5",
                       "developer/upgrades/5.3-to-5.4",
                       "developer/upgrades/5.2-to-5.3",
                       "developer/upgrades/5.1-to-5.2",

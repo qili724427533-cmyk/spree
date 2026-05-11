@@ -551,6 +551,82 @@ module Spree
         end
       end
 
+      describe 'stock reservations' do
+        let(:country) { Spree::Country.find_by(iso: 'US') || create(:country, iso: 'US') }
+        let!(:us_state) { country.states.find_by(abbr: 'NY') || create(:state, country: country, abbr: 'NY', name: 'New York') }
+        let!(:zone) { create(:zone, zone_members: [Spree::ZoneMember.new(zoneable: country)]) }
+        let!(:shipping_method) { create(:shipping_method, zones: [zone]) }
+        let(:address_params) do
+          {
+            first_name: 'Buyer', last_name: 'McGee',
+            address1: '1 Test St', city: 'New York',
+            postal_code: '10001', country_iso: 'US', state_abbr: 'NY',
+            phone: '555-0100'
+          }
+        end
+
+        before do
+          order.line_items.first.variant.stock_items.first.update!(backorderable: false)
+          order.line_items.first.variant.stock_items.first.set_count_on_hand(20)
+          order.update!(email: 'buyer@example.com')
+        end
+
+        context 'cart → checkout transition' do
+          let(:params) { { shipping_address: address_params } }
+
+          it 'creates reservations when leaving the cart state' do
+            expect(order.cart?).to be(true)
+            expect { subject }.to change { Spree::StockReservation.where(order_id: order.id).count }.by_at_least(1)
+          end
+        end
+
+        context 'in-checkout mutation' do
+          before do
+            described_class.call(cart: order, params: { shipping_address: address_params })
+          end
+
+          let(:params) { { customer_note: 'please ring bell' } }
+
+          it 'extends existing reservations' do
+            original_expiry = Spree::StockReservation.where(order_id: order.id).maximum(:expires_at)
+
+            Timecop.freeze(2.minutes.from_now) do
+              described_class.call(cart: order, params: params)
+            end
+
+            expect(Spree::StockReservation.where(order_id: order.id).maximum(:expires_at)).to be > original_expiry
+          end
+        end
+
+        # Reverting to the `cart` state from inside Update isn't reachable via
+        # the public params shape — `revert_to_address_state` only goes back to
+        # `address`, never all the way to `cart`. The `cart?` branch of
+        # sync_stock_reservations (Release) is exercised by Cart::Empty and
+        # Cart::Destroy specs.
+
+        context 'when Reserve fails with insufficient stock' do
+          let(:params) { { shipping_address: address_params } }
+
+          before do
+            # Bump line_item quantity above what stock_item can satisfy so that
+            # select_stock_item still picks the item (count_on_hand > 0) but
+            # the availability check fails.
+            order.line_items.first.update_column(:quantity, 5)
+            order.line_items.first.variant.stock_items.first.set_count_on_hand(2)
+          end
+
+          it 'returns failure and rolls back the cart update' do
+            previous_email = order.email
+            result = described_class.call(cart: order, params: params.merge(email: 'changed@example.com'))
+
+            expect(result).to be_failure
+            expect(result.error.to_s).to include('available')
+            expect(order.reload.email).to eq(previous_email)
+            expect(Spree::StockReservation.where(order_id: order.id)).to be_empty
+          end
+        end
+      end
+
     end
   end
 end

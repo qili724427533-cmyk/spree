@@ -72,9 +72,9 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
       security [api_key: [], bearer_auth: []]
 
       admin_sdk_example <<~JS
-        // One-shot order create: customer, items, addresses, market, notes,
-        // metadata, and a coupon code in a single call. Everything except
-        // `email` is optional.
+        // One-shot order create: customer, items, addresses, market, channel,
+        // notes, metadata, and a coupon code in a single call. Everything
+        // except `email` is optional.
         const order = await client.orders.create({
           email: 'jane@example.com',
           customer_id: 'cus_UkLWZg9DAJ',           // Existing customer; omit for guest orders
@@ -82,7 +82,14 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
 
           currency: 'USD',
           market_id: 'mkt_UkLWZg9DAJ',
+          channel_id: 'ch_UkLWZg9DAJ',             // Optional — defaults to the store's primary channel
           locale: 'en-US',
+
+          // Pin the order's preferred fulfillment location. Order Routing's
+          // built-in PreferredLocation rule ranks this location first when
+          // it stocks the cart's items; if it doesn't, routing falls back
+          // to the next rule (Minimize Splits → Default Location).
+          preferred_stock_location_id: 'sloc_UkLWZg9DAJ',
 
           customer_note: 'Please leave at the front desk.',
           internal_note: 'VIP customer — handle with care.',
@@ -131,7 +138,12 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
 
       description <<~DESC
         Creates a new draft order in one shot. Customer, items, addresses, currency,
-        market, locale, notes, metadata, and a coupon code can all be provided inline.
+        market, channel, locale, notes, metadata, and a coupon code can all be
+        provided inline.
+
+        Setting `preferred_stock_location_id` pins the order's preferred fulfillment
+        location — Order Routing's built-in `PreferredLocation` rule consumes it
+        when picking which stock location ships each shipment.
 
         Invalid coupon codes are non-fatal — the order is created and the failure
         is reported on the service result (not in the API response body for now).
@@ -149,6 +161,11 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
           use_customer_default_address: { type: :boolean, description: "When true with customer_id, copies the customer's saved billing/shipping addresses onto the order." },
           currency: { type: :string, example: 'USD' },
           market_id: { type: :string, description: 'Market ID' },
+          channel_id: { type: :string, description: 'Channel ID. Defaults to the store primary channel when omitted.' },
+          preferred_stock_location_id: {
+            type: :string,
+            description: "Stock Location ID to prefer for fulfillment. Order Routing's built-in PreferredLocation rule reads this and ranks the location first; routing falls back to the next rule when the preferred location can't cover the cart."
+          },
           locale: { type: :string, example: 'en-US' },
           customer_note: { type: :string, description: 'Public, customer-visible note' },
           internal_note: { type: :string, description: 'Staff-only note' },
@@ -196,6 +213,22 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
         run_test! do |response|
           data = JSON.parse(response.body)
           expect(data['email']).to eq('new-order@example.com')
+        end
+      end
+
+      response '201', 'order created with preferred_stock_location_id' do
+        let(:'x-spree-api-key') { secret_api_key.plaintext_token }
+        let!(:preferred_location) { create(:stock_location, name: 'Preferred', default: false) }
+        let(:body) do
+          {
+            email: 'pinned@example.com',
+            preferred_stock_location_id: preferred_location.prefixed_id
+          }
+        end
+
+        run_test! do |response|
+          data = JSON.parse(response.body)
+          expect(data['preferred_stock_location_id']).to eq(preferred_location.prefixed_id)
         end
       end
     end
@@ -272,6 +305,11 @@ RSpec.describe 'Admin Orders API', type: :request, swagger_doc: 'api-reference/a
           email: { type: :string },
           special_instructions: { type: :string },
           internal_note: { type: :string },
+          channel_id: { type: :string, description: 'Channel ID' },
+          preferred_stock_location_id: {
+            type: :string,
+            description: "Stock Location ID to prefer for fulfillment. Re-runs Order Routing's PreferredLocation rule on subsequent shipment rebuilds."
+          },
           ship_address: {
             type: :object,
             properties: {

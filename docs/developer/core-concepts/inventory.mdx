@@ -3,6 +3,8 @@ title: Inventory
 description: Stock locations, stock items, stock movements, and inventory tracking
 ---
 
+import { Since } from '/snippets/since.mdx';
+
 ## Overview
 
 Each [Variant](/developer/core-concepts/products#variants) has a `StockItem` that tracks its inventory at a specific location. A variant can have multiple stock items if it's available at multiple stock locations.
@@ -10,6 +12,8 @@ Each [Variant](/developer/core-concepts/products#variants) has a `StockItem` tha
 When products are sold or returned, individual `InventoryUnit` records track each unit through the fulfillment process.
 
 Adding new inventory to an out-of-stock product that has backorders will first fill the backorders, then update the available count with the remainder.
+
+During checkout, Spree holds stock with time-limited [Stock Reservations](#stock-reservations) to prevent two customers from buying the same last unit simultaneously.
 
 ### Inventory Model Diagram
 
@@ -52,14 +56,24 @@ erDiagram
         integer shipment_id
     }
 
+    StockReservation {
+        integer quantity
+        datetime expires_at
+        integer stock_item_id
+        integer line_item_id
+        integer order_id
+    }
+
     StockLocation ||--o{ StockItem : "has many"
     StockLocation ||--o{ StockTransfer : "source"
     StockLocation ||--o{ StockTransfer : "destination"
     Variant ||--o{ StockItem : "has many"
     Variant ||--o{ InventoryUnit : "has many"
     StockItem ||--o{ StockMovement : "has many"
+    StockItem ||--o{ StockReservation : "has many"
     StockTransfer ||--o{ StockMovement : "has many"
     Order ||--o{ InventoryUnit : "has many"
+    Order ||--o{ StockReservation : "has many"
     Shipment ||--o{ InventoryUnit : "has many"
 ```
 
@@ -69,6 +83,7 @@ erDiagram
 - **Stock Movement** → Records changes to Stock Item quantities (purchases, returns, transfers)
 - **Stock Transfer** → Moves inventory between Stock Locations, creating Stock Movements at source and destination
 - **Inventory Unit** → Represents individual units in [Orders](/developer/core-concepts/orders) and [Shipments](/developer/core-concepts/shipments)
+- **Stock Reservation** → Time-limited soft hold on a Stock Item during checkout, scoped to a specific Order and Line Item
 
 ## Inventory Management
 
@@ -152,6 +167,47 @@ Here's the list of attributes for the Stock Movement model:
 | `originator_id`   | The ID of the originator of the stock movement. This is used in conjunction with `originator_type`. | `2`                 |
 
 Stock Movements are crucial for maintaining accurate inventory levels and for historical tracking of inventory adjustments.
+
+## Stock Reservations <Since version="5.5" />
+
+Stock Reservations are a time-limited soft hold on stock during checkout. When a customer enters checkout, Spree holds the items in their cart for a limited time so other shoppers see reduced availability immediately. Two customers can no longer both pass the availability check on the same last unit only to have one of them fail at order completion.
+
+### What changes for the storefront
+
+Availability now subtracts the units other customers are holding in active checkouts. Whenever you read whether a variant is in stock — whether for a product page, cart line, or checkout summary — Spree returns the post-reservation number automatically. There's nothing for the storefront to compute and physical stock counts on each `StockItem` are never modified by reservations; reservations are an independent layer that's consulted at read time and cleaned up by background jobs.
+
+### Lifecycle
+
+| Trigger | Action |
+|---|---|
+| Customer enters checkout | A reservation is created for each line item with an expiry timestamp |
+| Customer continues mutating the cart while in checkout | The expiry is pushed forward |
+| Customer completes the order | The reservation is released; physical stock is decremented as before |
+| Customer empties or abandons the cart | The reservation is released or expires automatically |
+
+Reservations attach to each line item; when a line item or order is removed, the reservation goes with it.
+
+### Configuration
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `Spree::Config[:stock_reservations_enabled]` | `true` | Global kill switch. When `false`, reservations are not created and availability ignores them — behavior matches pre-5.5. |
+| `Spree::Config[:default_stock_reservation_ttl_minutes]` | `10` | Fallback hold duration when a Store doesn't override. |
+| `store.preferred_stock_reservation_ttl_minutes` | inherits global | Per-Store override. |
+
+TTL is a Store-level setting — it's a checkout-experience policy, not a warehouse property. A multi-location cart never has to merge conflicting TTLs from different warehouses.
+
+### Insufficient stock during checkout
+
+When a cart change in checkout would push the order beyond available stock, the change is rejected up front. The customer sees a validation error immediately, instead of progressing through payment only to fail at the final submit.
+
+### Background expiry
+
+Abandoned checkouts leave behind expired reservation rows. Spree provides a job to clean them up but does **not** auto-schedule it — your application's job runner needs to invoke it periodically (every minute is typical). See the [5.4 to 5.5 upgrade guide](/developer/upgrades/5.4-to-5.5#schedule-the-stock-reservations-expiry-job) for sidekiq-cron, solid_queue, and good_job snippets.
+
+### Backorderable items
+
+If a stock item is marked backorderable, it represents unlimited supply, so reservations are skipped entirely for that item. Availability is unaffected.
 
 ## Inventory Units
 
