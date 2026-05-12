@@ -74,8 +74,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: .
 
+      # Trusted Publishing requires npm >= 11.5.1, but the bundled npm
+      # on Node 22 is 10.9.7. A plain `npm install -g npm@latest` swaps
+      # npm's own files in place and the in-flight install can't find
+      # its own dependencies (MODULE_NOT_FOUND: promise-retry). Install
+      # to a separate prefix and prepend to PATH instead.
       - name: Upgrade npm for Trusted Publishing support
-        run: npm install -g npm@latest
+        run: |
+          npm install -g npm@latest --prefix="$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
         working-directory: .
 
       - name: Bump version above published
