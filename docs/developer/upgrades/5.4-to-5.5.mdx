@@ -161,6 +161,41 @@ Storefronts and custom integrations that act on the cart should expect this new 
 
 Other customers now see availability reduced by all active reservations, not just by completed orders. This is the intended fix to overselling — but if you have a real-time inventory dashboard that reads `count_on_hand` directly (rather than going through Spree's availability checks), you'll want to expose a "Reserved" axis to merchants so they can see in-checkout demand.
 
+### Payment method `type` on the wire is now a shorthand, not a Rails class name
+
+The `type` attribute on `Spree::PaymentMethod` (returned by both the Store API and the Admin API) used to be the full Rails STI class name — `"SpreeStripe::Gateway"`, `"SpreeAdyen::Gateway"`, `"Spree::PaymentMethod::Check"`. In 5.5 it switches to a stable shorthand derived from `Spree::Base.api_type`:
+
+| Class                              | Pre-5.5 `type`                  | 5.5+ `type`        |
+| ---------------------------------- | ------------------------------- | ------------------ |
+| `Spree::PaymentMethod::Check`      | `Spree::PaymentMethod::Check`   | `check`            |
+| `Spree::PaymentMethod::StoreCredit`| `Spree::PaymentMethod::StoreCredit` | `store_credit` |
+| `SpreeStripe::Gateway`             | `SpreeStripe::Gateway`          | `stripe`           |
+| `SpreeAdyen::Gateway`              | `SpreeAdyen::Gateway`           | `adyen`            |
+| `SpreePaypalCheckout::Gateway`     | `SpreePaypalCheckout::Gateway`  | `paypal_checkout`  |
+| `SpreeRazorpayCheckout::Gateway`   | `SpreeRazorpayCheckout::Gateway`| `razorpay_checkout`|
+
+The shorthand is also what `POST /api/v3/admin/payment_methods` now expects as `type` when creating a new method, and what `GET /api/v3/admin/payment_methods/types` returns in its `type` field.
+
+This is a breaking change for any storefront or integration that **string-matches the payment method type** to pick which payment-gateway SDK to load. The official Spree Next.js storefront resolves the gateway in `src/lib/utils/payment-gateway.ts`; update its map to key on the new shorthand:
+
+```ts
+const GATEWAY_TYPE_MAP: Record<string, GatewayId> = {
+  // 5.5+ shorthands
+  stripe: "stripe",
+  adyen: "adyen",
+  paypal_checkout: "paypal",
+  razorpay_checkout: "razorpay",
+  // Pre-5.5 Rails class names — keep while you have older backends in
+  // the field; drop once everyone is on 5.5+.
+  "SpreeStripe::Gateway": "stripe",
+  "SpreeAdyen::Gateway": "adyen",
+  "SpreePaypalCheckout::Gateway": "paypal",
+  "SpreeRazorpayCheckout::Gateway": "razorpay",
+};
+```
+
+If you maintain a custom storefront, search it for the legacy class strings (`"SpreeStripe::Gateway"`, `"SpreePaypalCheckout::Gateway"`, etc.) and add the corresponding 5.5+ shorthand alongside each one. The symptom of missing this is checkout rendering a generic "this payment method is not yet supported" placeholder instead of the gateway's SDK form.
+
 ### Order Routing chooses location order via merchant rules instead of database order
 
 The default routing strategy (`Spree::OrderRouting::Strategy::Rules`) packs the same set of stock locations as before, but the **order** in which locations are tried is now determined by the routing rules — Preferred Location → Minimize Splits → Default Location — rather than by raw database row order. The unit distribution (Prioritizer + Adjuster) is unchanged: top-ranked location's packages get first pick of on-hand inventory, the rest spills over.
