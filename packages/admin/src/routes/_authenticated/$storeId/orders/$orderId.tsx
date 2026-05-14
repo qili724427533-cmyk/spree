@@ -72,6 +72,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { orderQueryKey, useOrder, useOrderMutation } from '@/hooks/use-order'
 import { useResourceMutation } from '@/hooks/use-resource-mutation'
+import { formatPrice } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/$storeId/orders/$orderId')({
@@ -385,7 +386,7 @@ function AddLineItemDialog({
                           </div>
                         </div>
                         <div className="text-sm font-medium whitespace-nowrap">
-                          {v.display_price ?? ''}
+                          {formatPrice(v.price)}
                         </div>
                       </button>
                     ))}
@@ -406,7 +407,7 @@ function AddLineItemDialog({
                       {selectedVariant.options_text && (
                         <span>{selectedVariant.options_text} · </span>
                       )}
-                      SKU: {selectedVariant.sku || '—'} · {selectedVariant.display_price ?? ''}
+                      SKU: {selectedVariant.sku || '—'} · {formatPrice(selectedVariant.price)}
                     </div>
                   </div>
                   <button

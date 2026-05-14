@@ -16,6 +16,7 @@ module Spree
     end
     has_many :stock_movements, inverse_of: :stock_item
     has_many :stock_reservations, class_name: 'Spree::StockReservation', inverse_of: :stock_item, dependent: :destroy
+    has_many :active_stock_reservations, -> { active }, class_name: 'Spree::StockReservation', inverse_of: :stock_item
 
     validates :stock_location, :variant, presence: true
     validates :variant_id, uniqueness: { scope: :stock_location_id }, unless: :deleted_at
