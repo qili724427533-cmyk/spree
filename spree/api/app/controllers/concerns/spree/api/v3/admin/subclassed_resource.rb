@@ -110,10 +110,17 @@ module Spree
           end
 
           def apply_preferences(resource, preferences)
-            preferences.each do |key, value|
-              next unless resource.has_preference?(key.to_sym)
+            password_keys = resource.password_preference_keys
 
-              resource.set_preference(key.to_sym, value)
+            preferences.each do |key, value|
+              pref_name = key.to_sym
+              next unless resource.has_preference?(pref_name)
+              # Round-trip guard: clients fetching a record see masked
+              # `:password` values. Submitting the mask back unchanged
+              # must NOT overwrite the real secret with `••••cret`.
+              next if password_keys.include?(pref_name) && Spree::Preferences::Masking.masked?(value)
+
+              resource.set_preference(pref_name, value)
             end
           end
 

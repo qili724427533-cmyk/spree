@@ -27,13 +27,8 @@ module Spree
             action.promotion&.prefixed_id
           end
 
-          attribute :preferences do |action|
-            action.preferences.to_h
-          end
-
-          attribute :preference_schema do |action|
-            action.class.preference_schema
-          end
+          attribute :preferences, &:serialized_preferences
+          attribute :preference_schema, &:serialized_preference_schema
 
           attribute :label do |action|
             action.respond_to?(:human_name) ? action.human_name : action.type.to_s.demodulize
@@ -51,8 +46,8 @@ module Spree
             {
               type: calc.class.api_type,
               label: calc.class.respond_to?(:description) ? calc.class.description : calc.class.to_s.demodulize.titleize,
-              preferences: calc.preferences.to_h,
-              preference_schema: calc.class.preference_schema
+              preferences: calc.serialized_preferences,
+              preference_schema: calc.serialized_preference_schema
             }
           end
 

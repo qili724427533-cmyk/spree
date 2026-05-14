@@ -8,20 +8,55 @@ module Spree
   module PreferenceSchema
     extend ActiveSupport::Concern
 
+    delegate :preference_schema, :serialized_preference_schema, :password_preference_keys, to: :class
+
+    # Wire-safe view of `preferences` with `:password`-typed values
+    # masked. Lives here (not in the serializer) so any consumer holding
+    # a Preferable instance gets the same safety guarantee — secrets
+    # must never leave the server in plaintext. Keys are stringified to
+    # match the wire shape expected by JSON clients.
+    #
+    # @return [Hash{String => Object}]
+    def serialized_preferences
+      Spree::Preferences::Masking.serialize(self)
+    end
+
     class_methods do
       # Returns `[{ key:, type:, default: }]` for every preference declared
       # on this class (and its ancestors). Skips deprecated preferences.
       #
-      # The shape is intentionally narrow: the frontend only needs the type
-      # (`string`, `text`, `integer`, `decimal`, `boolean`, `array`, etc.) and
-      # the default to render a sensible field. Validation lives server-side.
-      #
       # Memoized at class load — the schema is derived from the static
       # `preference :name, :type` declarations, so it can never change at
-      # runtime. This keeps index responses cheap (the serializer embeds
-      # `preference_schema` on every row).
+      # runtime. Each entry also caches `key_string` (frozen) so hot-path
+      # serializers don't allocate `pref.to_s` per request.
       def preference_schema
         @preference_schema ||= compute_preference_schema
+      end
+
+      # Wire-safe variant of `preference_schema` with `:password`
+      # defaults nilled out. A gateway author can set a non-empty
+      # default for a `:password` preference; without this redaction the
+      # default leaks alongside the masked live value. Memoized so admin
+      # index responses don't re-allocate per row.
+      #
+      # Strips `:key_string` — that's a server-only cache used by
+      # `Masking.serialize` to avoid `to_s` allocations per request, not
+      # part of the documented `{ key, type, default }` wire shape.
+      def serialized_preference_schema
+        @serialized_preference_schema ||= preference_schema.map do |field|
+          wire = { key: field[:key], type: field[:type], default: field[:default] }
+          wire[:default] = nil if field[:type] == :password
+          wire.freeze
+        end.freeze
+      end
+
+      # Set of `:password`-typed preference keys for this class. Memoized
+      # so write-side guards (e.g. the masked-round-trip check) don't
+      # walk the schema or fall back to a `rescue NoMethodError`.
+      def password_preference_keys
+        @password_preference_keys ||= preference_schema
+                                      .each_with_object(Set.new) { |field, set| set << field[:key] if field[:type] == :password }
+                                      .freeze
       end
 
       def compute_preference_schema
@@ -31,9 +66,10 @@ module Spree
 
           {
             key: pref,
+            key_string: pref.to_s.freeze,
             type: instance.preference_type(pref),
             default: safe_preference_default(instance, pref)
-          }
+          }.freeze
         end
       rescue StandardError
         []
@@ -50,14 +86,16 @@ module Spree
 
       # Returns a `[{ type:, label:, description:, preference_schema: }]`
       # array for every concrete subclass in `subclasses`. Sorted by label
-      # for stable output.
+      # for stable output. Uses `serialized_preference_schema` so
+      # `:password` defaults are redacted — `/types` is an unauthenticated
+      # discovery surface and must never leak gateway-shipped defaults.
       def subclasses_with_preference_schema
         registered_subclasses.map do |klass|
           {
             type: klass.api_type,
             label: subclass_label(klass),
             description: klass.respond_to?(:description) ? klass.description : nil,
-            preference_schema: klass.respond_to?(:preference_schema) ? klass.preference_schema : []
+            preference_schema: klass.respond_to?(:serialized_preference_schema) ? klass.serialized_preference_schema : []
           }
         end.sort_by { |entry| entry[:label] }
       end
