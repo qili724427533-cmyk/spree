@@ -24,6 +24,9 @@ module Spree
               puts 'Loading sample products...'
               load_products
 
+              puts 'Loading sample categories...'
+              load_categories
+
               puts 'Loading sample product translations...'
               load_product_translations
 
@@ -65,6 +68,22 @@ module Spree
       def load_products
         csv_path = sample_data_path.join('products.csv')
         Spree::SampleData::ImportRunner.call(csv_path: csv_path, import_class: Spree::Imports::Products)
+      end
+
+      def load_categories
+        store = Spree::Store.default
+        csv_path = sample_data_path.join('products.csv')
+
+        require 'csv'
+        ::CSV.foreach(csv_path, headers: true) do |row|
+          product = store.products.find_by(slug: row['slug'])
+          next unless product
+
+          categories = [row['category1'], row['category2'], row['category3']].compact_blank
+          next if categories.empty?
+
+          Spree::Imports::CreateCategoriesJob.perform_now(product.id, store.id, categories)
+        end
       end
 
       def load_product_translations
