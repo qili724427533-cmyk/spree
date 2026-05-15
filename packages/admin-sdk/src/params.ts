@@ -495,6 +495,26 @@ export interface PreferenceField {
 }
 
 /**
+ * Mask token the server applies to `:password`-typed preferences before
+ * returning them. The value `••••` followed by the original secret's
+ * last four characters — Stripe's "stored, last 4 shown" pattern.
+ *
+ * Mirrors `Spree::Preferences::Masking::TOKEN` on the backend. The
+ * backend's write-side guard skips updating a `:password` preference
+ * whose submitted value starts with this token, so clients can
+ * round-trip a fetched payload without overwriting the real secret.
+ */
+export const PREFERENCE_MASK_TOKEN = '••••'
+
+/**
+ * @param value Anything that might be a masked secret returned from the API.
+ * @returns true when the value carries the leading mask token.
+ */
+export function isMaskedSecret(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith(PREFERENCE_MASK_TOKEN)
+}
+
+/**
  * The shape returned by `/<resource>/types` endpoints — one entry per
  * registered subclass with its preference schema. Used to build "Add
  * provider / action / rule" pickers and render generic preferences forms.
@@ -506,20 +526,14 @@ export interface ResourceTypeDefinition {
   preference_schema: PreferenceField[]
 }
 
-/**
- * Where the merchant exposes a payment method — `front_end` shows it on the
- * storefront, `back_end` only in the admin (e.g. manual check capture),
- * `both` everywhere.
- */
-export type PaymentMethodDisplayOn = 'both' | 'front_end' | 'back_end'
-
 export interface PaymentMethodCreateParams {
   /** Fully-qualified STI subclass name, e.g. 'Spree::PaymentMethod::Check'. */
   type: string
   name: string
   description?: string | null
   active?: boolean
-  display_on?: PaymentMethodDisplayOn
+  /** `false` → admin-only; `true` → also on the storefront. */
+  storefront_visible?: boolean
   auto_capture?: boolean | null
   position?: number
   metadata?: Record<string, unknown>
@@ -531,7 +545,8 @@ export interface PaymentMethodUpdateParams {
   name?: string
   description?: string | null
   active?: boolean
-  display_on?: PaymentMethodDisplayOn
+  /** `false` → admin-only; `true` → also on the storefront. */
+  storefront_visible?: boolean
   auto_capture?: boolean | null
   position?: number
   metadata?: Record<string, unknown>

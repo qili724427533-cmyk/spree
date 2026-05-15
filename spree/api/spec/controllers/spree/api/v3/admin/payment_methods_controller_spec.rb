@@ -28,6 +28,31 @@ RSpec.describe Spree::Api::V3::Admin::PaymentMethodsController, type: :controlle
         expect(json_response['data'].map { |pm| pm['id'] }).not_to include(other_payment_method.prefixed_id)
       end
     end
+
+    context 'when filtering by storefront_visible' do
+      let!(:storefront_visible_method) do
+        create(:check_payment_method, stores: [store], display_on: 'both')
+      end
+      let!(:admin_only_method) do
+        create(:check_payment_method, stores: [store], display_on: 'back_end')
+      end
+
+      it 'returns only storefront-visible methods when q[storefront_visible_eq]=true' do
+        get :index, params: { q: { storefront_visible_eq: true } }, as: :json
+
+        ids = json_response['data'].map { |pm| pm['id'] }
+        expect(ids).to include(storefront_visible_method.prefixed_id)
+        expect(ids).not_to include(admin_only_method.prefixed_id)
+      end
+
+      it 'returns only admin-only methods when q[storefront_visible_eq]=false' do
+        get :index, params: { q: { storefront_visible_eq: false } }, as: :json
+
+        ids = json_response['data'].map { |pm| pm['id'] }
+        expect(ids).to include(admin_only_method.prefixed_id)
+        expect(ids).not_to include(storefront_visible_method.prefixed_id)
+      end
+    end
   end
 
   describe 'GET #show' do
@@ -79,7 +104,7 @@ RSpec.describe Spree::Api::V3::Admin::PaymentMethodsController, type: :controlle
         name: 'Check on delivery',
         description: 'Pay by physical check',
         active: true,
-        display_on: 'back_end'
+        storefront_visible: false
       }
     end
 
@@ -159,6 +184,54 @@ RSpec.describe Spree::Api::V3::Admin::PaymentMethodsController, type: :controlle
         payment_method.reload
         expect(payment_method.preferred_dummy_secret_key).to eq('sk_live_existing_secret')
         expect(payment_method.preferred_dummy_key).to eq('pk_live_new_public_key')
+      end
+    end
+  end
+
+  # `storefront_visible` is the wire-level visibility flag. The
+  # underlying `display_on` column lives on until 6.0 (see
+  # docs/plans/5.5-6.0-display-on-to-boolean.md) but is no longer
+  # exposed or accepted by the Admin API — clients read/write only the
+  # boolean.
+  describe 'storefront_visible' do
+    context 'GET #show' do
+      it 'returns storefront_visible: false when display_on is back_end' do
+        payment_method.update!(display_on: 'back_end')
+
+        get :show, params: { id: payment_method.prefixed_id }, as: :json
+
+        expect(json_response['storefront_visible']).to be false
+        expect(json_response).not_to have_key('display_on')
+      end
+
+      it 'returns storefront_visible: true when display_on is both' do
+        payment_method.update!(display_on: 'both')
+
+        get :show, params: { id: payment_method.prefixed_id }, as: :json
+
+        expect(json_response['storefront_visible']).to be true
+      end
+    end
+
+    context 'PATCH #update' do
+      it 'maps storefront_visible: false to display_on: back_end' do
+        patch :update,
+              params: { id: payment_method.prefixed_id, storefront_visible: false },
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(payment_method.reload.display_on).to eq('back_end')
+      end
+
+      it 'maps storefront_visible: true to display_on: both' do
+        payment_method.update!(display_on: 'back_end')
+
+        patch :update,
+              params: { id: payment_method.prefixed_id, storefront_visible: true },
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(payment_method.reload.display_on).to eq('both')
       end
     end
   end

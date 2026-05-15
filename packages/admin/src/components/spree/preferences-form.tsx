@@ -2,11 +2,30 @@ import type { PreferenceField as PreferenceFieldDef } from '@spree/admin-sdk'
 import { PlusIcon, TrashIcon } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import { CurrencySelect } from '@/components/spree/currency-select'
+import { SecretInput } from '@/components/spree/secret-input'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+
+/**
+ * Hydrates a `preferences` hash with each field's default. Used to seed
+ * create-mode forms when the user picks a provider/calculator so the
+ * `<PreferencesForm>` shows sensible starting values instead of blanks.
+ *
+ * `:password` fields are always skipped — the server returns their
+ * defaults as `null`, and even when it doesn't, autofilling a password
+ * field is hostile UX.
+ */
+export function defaultPreferences(schema: PreferenceFieldDef[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const field of schema) {
+    if (field.type === 'password') continue
+    if (field.default !== null && field.default !== undefined) out[field.key] = field.default
+  }
+  return out
+}
 
 interface PreferencesFormProps {
   schema: PreferenceFieldDef[]
@@ -170,32 +189,14 @@ export function PreferenceField({
       )
 
     case 'password':
-      if (redactPasswords) {
-        return (
-          <Field>
-            <FieldLabel htmlFor={id}>{displayLabel}</FieldLabel>
-            <Input
-              id={id}
-              type="password"
-              autoComplete="new-password"
-              placeholder="Stored — leave blank to keep current"
-              value={(value as string) ?? ''}
-              onChange={(e) => onChange(e.target.value)}
-            />
-          </Field>
-        )
-      }
       return (
-        <Field>
-          <FieldLabel htmlFor={id}>{displayLabel}</FieldLabel>
-          <Input
-            id={id}
-            type="password"
-            autoComplete="new-password"
-            value={(value as string) ?? ''}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        </Field>
+        <SecretInput
+          id={id}
+          label={displayLabel}
+          value={value}
+          onChange={onChange}
+          redactWhenMasked={!!redactPasswords}
+        />
       )
 
     default:
